@@ -15,7 +15,11 @@ class Settings(BaseSettings):
     # Required: the app refuses to start without it.
     database_url: str
 
-    model_config = SettingsConfigDict(env_file=".env", env_prefix="VARCITY_")
+    # Variables the app doesn't know about (such as the test database URL,
+    # which only the test suite uses) are ignored.
+    model_config = SettingsConfigDict(
+        env_file=".env", env_prefix="VARCITY_", extra="ignore"
+    )
 
 
 settings = Settings()
