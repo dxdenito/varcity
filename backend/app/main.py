@@ -1,6 +1,9 @@
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, Response
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.db import get_db
 
 app = FastAPI(title=settings.app_name, version=settings.version)
 
@@ -14,3 +17,14 @@ def live():
         "version": settings.version,
         "environment": settings.environment,
     }
+
+
+@app.get("/api/v1/health/ready", tags=["health"])
+def ready(response: Response, db: Session = Depends(get_db)):
+    """Readiness check: the app can reach its database."""
+    try:
+        db.execute(text("SELECT 1"))
+    except Exception:
+        response.status_code = 503
+        return {"status": "unavailable", "database": "down"}
+    return {"status": "ok", "database": "up"}
