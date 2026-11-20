@@ -4,8 +4,11 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.db import get_db
+from app.modules.settings.router import router as settings_router
 
 app = FastAPI(title=settings.app_name, version=settings.version)
+
+app.include_router(settings_router)
 
 
 @app.get("/api/v1/health/live", tags=["health"])
