@@ -1,1 +1,39 @@
 @import "tailwindcss";
+
+/* Fallback theme, used until (or unless) the branding loads from the server.
+   The server's values replace these at runtime. */
+:root {
+  --brand-50: #eff6ff;
+  --brand-100: #dbeafe;
+  --brand-200: #bfdbfe;
+  --brand-300: #93c5fd;
+  --brand-400: #60a5fa;
+  --brand-500: #3b82f6;
+  --brand-600: #2563eb;
+  --brand-700: #1d4ed8;
+  --brand-800: #1e40af;
+  --brand-900: #1e3a8a;
+  --brand-950: #172554;
+  --on-primary: #ffffff;
+  --sidebar: #0f2557;
+  --on-sidebar: #ffffff;
+}
+
+/* Expose the variables as Tailwind colours: bg-brand-600, text-on-brand,
+   bg-sidebar, text-on-sidebar... "inline" keeps them live at runtime. */
+@theme inline {
+  --color-brand-50: var(--brand-50);
+  --color-brand-100: var(--brand-100);
+  --color-brand-200: var(--brand-200);
+  --color-brand-300: var(--brand-300);
+  --color-brand-400: var(--brand-400);
+  --color-brand-500: var(--brand-500);
+  --color-brand-600: var(--brand-600);
+  --color-brand-700: var(--brand-700);
+  --color-brand-800: var(--brand-800);
+  --color-brand-900: var(--brand-900);
+  --color-brand-950: var(--brand-950);
+  --color-on-brand: var(--on-primary);
+  --color-sidebar: var(--sidebar);
+  --color-on-sidebar: var(--on-sidebar);
+}

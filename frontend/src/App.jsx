@@ -1,56 +1,50 @@
-import { useEffect, useState } from 'react'
+import AppShell from './components/layout/AppShell'
+import BrandingProvider from './theme/BrandingProvider'
+import { useBranding } from './theme/branding-context'
 
-export default function App() {
-  const [health, setHealth] = useState(null)
-  const [error, setError] = useState(null)
+const SHADES = ['50', '100', '200', '300', '400', '500', '600', '700', '800', '900', '950']
 
-  useEffect(() => {
-    fetch('/api/v1/health/live')
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        return res.json()
-      })
-      .then(setHealth)
-      .catch((err) => setError(err.message))
-  }, [])
+function DashboardPlaceholder() {
+  const branding = useBranding()
 
   return (
-    <div className="min-h-screen bg-slate-100 flex items-center justify-center p-6">
-      <div className="w-full max-w-md rounded-xl bg-white p-8 shadow">
-        <h1 className="text-2xl font-semibold text-slate-900">Varcity</h1>
-        <p className="mt-1 text-sm text-slate-500">University ERP</p>
+    <div className="space-y-6">
+      <section className="rounded-xl bg-gradient-to-r from-brand-950 to-brand-700 p-8 text-white">
+        <h1 className="text-2xl font-semibold sm:text-3xl">Welcome to {branding.short_name}</h1>
+        <p className="mt-2 text-sm opacity-90">{branding.university_name}</p>
+      </section>
 
-        <div className="mt-6 border-t border-slate-200 pt-6">
-          <h2 className="text-sm font-medium text-slate-700">Backend status</h2>
-
-          {error && (
-            <p className="mt-2 rounded bg-red-50 p-3 text-sm text-red-700">
-              Cannot reach the backend: {error}
-            </p>
-          )}
-
-          {!error && !health && (
-            <p className="mt-2 text-sm text-slate-500">Checking...</p>
-          )}
-
-          {health && (
-            <dl className="mt-2 space-y-1 text-sm">
-              <div className="flex justify-between">
-                <dt className="text-slate-500">Status</dt>
-                <dd className="font-medium text-green-600">{health.status}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-slate-500">Version</dt>
-                <dd>{health.version}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-slate-500">Environment</dt>
-                <dd>{health.environment}</dd>
-              </div>
-            </dl>
-          )}
+      {/* Temporary: shows the palette generated from the primary colour. */}
+      <section className="rounded-xl bg-white p-6 shadow-sm">
+        <h2 className="text-sm font-medium text-slate-700">Theme preview</h2>
+        <div className="mt-3 flex overflow-hidden rounded-lg">
+          {SHADES.map((shade) => (
+            <div
+              key={shade}
+              className="flex h-16 flex-1 items-end justify-center pb-1 text-[10px] text-slate-700"
+              style={{ backgroundColor: `var(--brand-${shade})` }}
+            >
+              {shade}
+            </div>
+          ))}
         </div>
-      </div>
+        <button
+          type="button"
+          className="mt-4 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-on-brand hover:bg-brand-700"
+        >
+          Primary button
+        </button>
+      </section>
     </div>
+  )
+}
+
+export default function App() {
+  return (
+    <BrandingProvider>
+      <AppShell>
+        <DashboardPlaceholder />
+      </AppShell>
+    </BrandingProvider>
   )
 }
