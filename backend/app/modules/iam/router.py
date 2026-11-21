@@ -1,10 +1,12 @@
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.db import get_db
 from app.modules.iam import service
-from app.modules.iam.deps import require_auth, require_csrf
+from app.modules.iam.deps import require_auth, require_csrf, require_superuser
 from app.modules.iam.schemas import AuthResponse, LoginRequest
 from app.modules.iam.service import AuthContext
 from app.modules.iam.tokens import csrf_for
@@ -66,3 +68,20 @@ def logout(
     service.logout(db, ctx, _client_ip(request))
     db.commit()
     response.delete_cookie(settings.session_cookie_name, path="/")
+
+admin_router = APIRouter(prefix="/api/v1/admin/users", tags=["admin"])
+
+
+@admin_router.post("/{user_id}/unlock", status_code=204)
+def unlock_user(
+    user_id: uuid.UUID,
+    request: Request,
+    ctx: AuthContext = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    try:
+        service.unlock_account(db, ctx, user_id, _client_ip(request))
+    except service.AccountNotFound:
+        db.rollback()
+        raise HTTPException(status_code=404, detail="Account not found")
+    db.commit()

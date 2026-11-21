@@ -26,3 +26,9 @@ def require_csrf(
     if not hmac.compare_digest(x_csrf_token.encode(), ctx.csrf_token.encode()):
         raise HTTPException(status_code=403, detail="Invalid CSRF token")
     return ctx
+
+def require_superuser(ctx: AuthContext = Depends(require_csrf)) -> AuthContext:
+    # Temporary: replaced by permission checks in the RBAC phase.
+    if not ctx.user.is_superuser:
+        raise HTTPException(status_code=403, detail="Not permitted")
+    return ctx

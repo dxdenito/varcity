@@ -1,4 +1,4 @@
-import ipaddress
+import uuid
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -11,6 +11,7 @@ from app.modules.audit import service as audit
 from app.modules.iam.models import UserAccount, UserSession
 from app.modules.iam.passwords import hash_password, verify_password
 from app.modules.iam.tokens import csrf_for, generate_token, hash_token
+from app.core.net import clean_ip
 
 logger = logging.getLogger(__name__)
 
@@ -28,13 +29,6 @@ def _get_dummy_hash() -> str:
     if _dummy_hash is None:
         _dummy_hash = hash_password("dummy-password-for-timing-only")
     return _dummy_hash
-
-
-def _clean_ip(value: str | None) -> str | None:
-    try:
-        return str(ipaddress.ip_address(value)) if value else None
-    except ValueError:
-        return None
 
 
 @dataclass
@@ -65,7 +59,7 @@ def login(
     """
     now = datetime.now(UTC)
     email = email.strip().lower()
-    ip = _clean_ip(ip_address)
+    ip = clean_ip(ip_address)
     user = db.scalar(select(UserAccount).where(UserAccount.email == email))
 
     # Always do one password check, so timing doesn't reveal if the email exists.
@@ -194,5 +188,30 @@ def logout(db: Session, ctx: AuthContext, ip_address: str | None) -> None:
         actor_id=ctx.user.id,
         entity_type="user_account",
         entity_id=str(ctx.user.id),
-        ip_address=_clean_ip(ip_address),
+        ip_address=clean_ip(ip_address),
+    )
+
+class AccountNotFound(Exception):
+    pass
+
+
+def unlock_account(
+    db: Session, ctx: AuthContext, user_id: uuid.UUID, ip_address: str | None
+) -> None:
+    user = db.get(UserAccount, user_id)
+    if user is None:
+        raise AccountNotFound
+
+    was_locked = user.locked_until is not None and user.locked_until > datetime.now(UTC)
+    user.locked_until = None
+    user.failed_login_count = 0
+    audit.record(
+        db,
+        action="auth.account.unlocked",
+        module="iam",
+        actor_id=ctx.user.id,
+        entity_type="user_account",
+        entity_id=str(user.id),
+        new_values={"was_locked": was_locked},
+        ip_address=clean_ip(ip_address),
     )
