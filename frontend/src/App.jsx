@@ -1,8 +1,19 @@
+import { useEffect, useState } from 'react'
+
+import { useAuth } from './auth/auth-context'
+import AuthProvider from './auth/AuthProvider'
 import AppShell from './components/layout/AppShell'
+import { api } from './lib/api'
+import LoginPage from './pages/LoginPage'
+import SetupPage from './pages/SetupPage'
 import BrandingProvider from './theme/BrandingProvider'
 import { useBranding } from './theme/branding-context'
 
 const SHADES = ['50', '100', '200', '300', '400', '500', '600', '700', '800', '900', '950']
+
+function BlankScreen() {
+  return <div className="min-h-screen bg-slate-100" aria-busy="true" />
+}
 
 function DashboardPlaceholder() {
   const branding = useBranding()
@@ -28,23 +39,49 @@ function DashboardPlaceholder() {
             </div>
           ))}
         </div>
-        <button
-          type="button"
-          className="mt-4 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-on-brand hover:bg-brand-700"
-        >
-          Primary button
-        </button>
       </section>
     </div>
+  )
+}
+
+// Signed in -> the application. Otherwise -> the login screen.
+function AuthenticatedApp() {
+  const { status } = useAuth()
+
+  if (status === 'loading') return <BlankScreen />
+  if (status === 'anonymous') return <LoginPage />
+
+  return (
+    <AppShell>
+      <DashboardPlaceholder />
+    </AppShell>
+  )
+}
+
+// First decide whether this installation still needs its one-time setup.
+function Gate() {
+  const [setupRequired, setSetupRequired] = useState(null) // null = still checking
+
+  useEffect(() => {
+    api('/api/v1/setup/status')
+      .then((data) => setSetupRequired(data.setup_required))
+      .catch(() => setSetupRequired(false)) // server unreachable: the login page will say so
+  }, [])
+
+  if (setupRequired === null) return <BlankScreen />
+  if (setupRequired) return <SetupPage />
+
+  return (
+    <AuthProvider>
+      <AuthenticatedApp />
+    </AuthProvider>
   )
 }
 
 export default function App() {
   return (
     <BrandingProvider>
-      <AppShell>
-        <DashboardPlaceholder />
-      </AppShell>
+      <Gate />
     </BrandingProvider>
   )
 }

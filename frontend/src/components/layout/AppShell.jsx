@@ -9,6 +9,7 @@ import {
   FileCheck,
   GraduationCap,
   LayoutDashboard,
+  LogOut,
   Menu,
   Search,
   Settings,
@@ -22,6 +23,7 @@ import {
 } from 'lucide-react'
 
 import { useBranding } from '../../theme/branding-context'
+import { useAuth } from '../../auth/auth-context'
 
 // Placeholder menu copied from the design mockup. It will later be built
 // from the enabled modules and the signed-in user's permissions.
@@ -71,6 +73,7 @@ function Logo({ branding }) {
 
 export default function AppShell({ children }) {
   const branding = useBranding()
+  const { user, logout } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
 
   return (
@@ -155,8 +158,19 @@ export default function AppShell({ children }) {
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-on-brand">
                 <User size={16} aria-hidden="true" />
               </div>
-              <span className="hidden text-sm text-slate-600 sm:inline">Not signed in</span>
+              <span className="hidden max-w-48 truncate text-sm text-slate-600 sm:inline">
+                {user.email}
+              </span>
             </div>
+            <button
+              type="button"
+              onClick={logout}
+              className="flex items-center gap-1 rounded p-2 text-sm text-slate-600 hover:bg-slate-100"
+              aria-label="Sign out"
+            >
+              <LogOut size={18} aria-hidden="true" />
+              <span className="hidden sm:inline">Sign out</span>
+            </button>
           </div>
         </header>
 
