@@ -10,6 +10,7 @@ from app.modules.iam.router import admin_router, router as auth_router
 from app.modules.settings.router import router as settings_router
 from app.modules.setup.router import router as setup_router
 from app.modules.setup.service import announce_setup_code_if_needed
+from app.modules.org.router import router as org_router
 
 
 @asynccontextmanager
@@ -24,6 +25,7 @@ app.include_router(settings_router)
 app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(setup_router)
+app.include_router(org_router)
 
 
 @app.get("/api/v1/health/live", tags=["health"])

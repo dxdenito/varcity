@@ -48,3 +48,53 @@ def db():
     with SessionLocal() as session:
         yield session
         session.rollback()
+
+@pytest.fixture
+def make_user():
+    import uuid
+
+    from sqlalchemy import delete
+
+    from app.core.db import SessionLocal
+    from app.modules.iam.models import UserAccount
+    from app.modules.iam.passwords import hash_password
+
+    created = []
+
+    def _make(*, is_superuser=False):
+        email = f"{uuid.uuid4()}@example.com"
+        with SessionLocal() as session:
+            account = UserAccount(
+                email=email,
+                password_hash=hash_password("a-long-test-passphrase"),
+                full_name="Test User",
+                is_superuser=is_superuser,
+            )
+            session.add(account)
+            session.commit()
+            created.append(account.id)
+            return {"id": account.id, "email": email}
+
+    yield _make
+    with SessionLocal() as session:
+        session.execute(delete(UserAccount).where(UserAccount.id.in_(created)))
+        session.commit()
+
+
+@pytest.fixture
+def signed_in(make_user):
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    def _sign_in(*, is_superuser=False):
+        user = make_user(is_superuser=is_superuser)
+        client = TestClient(app)
+        response = client.post(
+            "/api/v1/auth/login",
+            json={"email": user["email"], "password": "a-long-test-passphrase"},
+        )
+        client.headers["X-CSRF-Token"] = response.json()["csrf_token"]
+        return client
+
+    return _sign_in

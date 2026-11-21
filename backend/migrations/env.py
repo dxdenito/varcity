@@ -10,6 +10,7 @@ from app.core.config import settings
 import app.modules.audit.models  # noqa: F401
 import app.modules.settings.models  # noqa: F401
 import app.modules.iam.models  # noqa: F401
+import app.modules.org.models  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:
