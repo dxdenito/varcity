@@ -1,5 +1,7 @@
 import uuid
 
+from sqlalchemy import func, select, update
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -222,3 +224,110 @@ def delete_node(db: Session, ctx: AuthContext, node_id: uuid.UUID, ip_address: s
         ip_address=clean_ip(ip_address),
     )
     db.delete(node)
+
+def move_node(
+    db: Session,
+    ctx: AuthContext,
+    node_id: uuid.UUID,
+    new_parent_id: uuid.UUID,
+    ip_address: str | None,
+) -> Node:
+    node = db.get(Node, node_id)
+    new_parent = db.get(Node, new_parent_id)
+    if node is None or new_parent is None:
+        raise NotFound("Entry not found.")
+    if node.parent_id is None:
+        raise OrgError("The institution's top-level entry cannot be moved.")
+    if node.parent_id == new_parent.id:
+        raise OrgError("It is already under that parent.")
+    if new_parent.path.startswith(node.path):
+        raise OrgError("An entry cannot be moved inside itself.")
+    if new_parent.status != "active":
+        raise OrgError("The new parent is archived.")
+
+    allowed = set(
+        db.scalars(select(NodeTypeParent.parent_type_id).where(NodeTypeParent.type_id == node.type_id))
+    )
+    if new_parent.type_id not in allowed:
+        node_type = db.get(NodeType, node.type_id)
+        parent_type = db.get(NodeType, new_parent.type_id)
+        raise OrgError(f"A {node_type.name} cannot be placed under a {parent_type.name}.")
+
+    old_parent_id = node.parent_id
+    old_prefix = node.path
+    new_prefix = f"{new_parent.path}{node.id}/"
+    db.execute(
+        update(Node)
+        .where(Node.path.startswith(old_prefix, autoescape=True))
+        .values(path=func.concat(new_prefix, func.substr(Node.path, len(old_prefix) + 1)))
+        .execution_options(synchronize_session=False)
+    )
+    node.parent_id = new_parent.id
+    db.flush()
+    db.refresh(node)
+
+    audit.record(
+        db,
+        action="org.node.move",
+        module="org",
+        actor_id=ctx.user.id,
+        entity_type="node",
+        entity_id=str(node.id),
+        old_values={"parent_id": str(old_parent_id)},
+        new_values={"parent_id": str(new_parent.id)},
+        ip_address=clean_ip(ip_address),
+    )
+    return node
+
+
+def archive_node(db: Session, ctx: AuthContext, node_id: uuid.UUID, ip_address: str | None) -> Node:
+    node = db.get(Node, node_id)
+    if node is None:
+        raise NotFound("Entry not found.")
+    if node.parent_id is None:
+        raise OrgError("The institution's top-level entry cannot be archived.")
+
+    active_children = db.scalar(
+        select(func.count())
+        .select_from(Node)
+        .where(Node.parent_id == node.id, Node.status == "active")
+    )
+    if active_children:
+        raise Conflict(
+            f"Cannot archive: it still contains {active_children} active "
+            f"entr{'y' if active_children == 1 else 'ies'}. Move or archive them first."
+        )
+
+    node.status = "archived"
+    audit.record(
+        db,
+        action="org.node.archive",
+        module="org",
+        actor_id=ctx.user.id,
+        entity_type="node",
+        entity_id=str(node.id),
+        ip_address=clean_ip(ip_address),
+    )
+    return node
+
+
+def unarchive_node(db: Session, ctx: AuthContext, node_id: uuid.UUID, ip_address: str | None) -> Node:
+    node = db.get(Node, node_id)
+    if node is None:
+        raise NotFound("Entry not found.")
+
+    parent = db.get(Node, node.parent_id) if node.parent_id else None
+    if parent is not None and parent.status != "active":
+        raise Conflict("Cannot restore: its parent is archived. Restore the parent first.")
+
+    node.status = "active"
+    audit.record(
+        db,
+        action="org.node.unarchive",
+        module="org",
+        actor_id=ctx.user.id,
+        entity_type="node",
+        entity_id=str(node.id),
+        ip_address=clean_ip(ip_address),
+    )
+    return node

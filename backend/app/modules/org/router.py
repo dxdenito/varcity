@@ -14,6 +14,7 @@ from app.modules.org.schemas import (
     NodeOut,
     NodeTypeOut,
     NodeUpdate,
+    NodeMove,
 )
 
 router = APIRouter(prefix="/api/v1/org", tags=["organization"])
@@ -113,3 +114,35 @@ def delete_node(
     db: Session = Depends(get_db),
 ):
     _execute(db, lambda: service.delete_node(db, ctx, node_id, _ip(request)))
+
+@router.post("/nodes/{node_id}/move", response_model=NodeOut)
+def move_node(
+    node_id: uuid.UUID,
+    payload: NodeMove,
+    request: Request,
+    ctx: AuthContext = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    return _execute(
+        db, lambda: service.move_node(db, ctx, node_id, payload.new_parent_id, _ip(request))
+    )
+
+
+@router.post("/nodes/{node_id}/archive", response_model=NodeOut)
+def archive_node(
+    node_id: uuid.UUID,
+    request: Request,
+    ctx: AuthContext = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    return _execute(db, lambda: service.archive_node(db, ctx, node_id, _ip(request)))
+
+
+@router.post("/nodes/{node_id}/unarchive", response_model=NodeOut)
+def unarchive_node(
+    node_id: uuid.UUID,
+    request: Request,
+    ctx: AuthContext = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    return _execute(db, lambda: service.unarchive_node(db, ctx, node_id, _ip(request)))

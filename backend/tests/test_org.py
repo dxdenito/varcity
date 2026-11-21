@@ -1,6 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import delete, update
+from sqlalchemy import delete, select, update
 
 from app.core.db import SessionLocal
 from app.main import app
@@ -144,3 +144,61 @@ def test_only_super_admins_can_change_the_structure(clean_org, admin, signed_in)
     assert regular.get(NODES).status_code == 200
     assert regular.post(NODES, json=body).status_code == 403
     assert TestClient(app).get(NODES).status_code == 401
+
+def _paths():
+    with SessionLocal() as session:
+        return {n.code: n.path for n in session.scalars(select(Node))}
+
+
+def test_moving_an_entry_moves_everything_under_it(clean_org, admin):
+    _initialize(admin)
+    types, root = _tree(admin)
+    main = _create(admin, types, "campus", root, "main").json()
+    other = _create(admin, types, "campus", root, "other").json()
+    college = _create(admin, types, "college", main, "eng").json()
+    _create(admin, types, "department", college, "cs")
+
+    response = admin.post(f"{NODES}/{college['id']}/move", json={"new_parent_id": other["id"]})
+    assert response.status_code == 200
+    assert response.json()["parent_id"] == other["id"]
+
+    paths = _paths()
+    assert paths["ENG"].startswith(paths["OTHER"])
+    assert paths["CS"].startswith(paths["ENG"])
+    assert not paths["CS"].startswith(paths["MAIN"])
+
+
+def test_invalid_moves_are_refused(clean_org, admin):
+    _initialize(admin)
+    types, root = _tree(admin)
+    main = _create(admin, types, "campus", root, "main").json()
+    college = _create(admin, types, "college", main, "eng").json()
+    dept = _create(admin, types, "department", college, "cs").json()
+    other = _create(admin, types, "campus", root, "other").json()
+
+    def move(node, parent):
+        return admin.post(f"{NODES}/{node['id']}/move", json={"new_parent_id": parent["id"]})
+
+    assert move(college, dept).status_code == 422  # inside its own subtree
+    assert move(dept, other).status_code == 422  # a department cannot sit under a campus
+    assert move(root, other).status_code == 422  # the top-level entry never moves
+    assert move(college, main).status_code == 422  # already there
+
+
+def test_archive_needs_dependents_dealt_with_first(clean_org, admin):
+    _initialize(admin)
+    types, root = _tree(admin)
+    campus = _create(admin, types, "campus", root, "main").json()
+    college = _create(admin, types, "college", campus, "eng").json()
+
+    blocked = admin.post(f"{NODES}/{campus['id']}/archive")
+    assert blocked.status_code == 409
+    assert "still contains" in blocked.json()["detail"]
+
+    assert admin.post(f"{NODES}/{college['id']}/archive").json()["status"] == "archived"
+    assert admin.post(f"{NODES}/{campus['id']}/archive").json()["status"] == "archived"
+    assert admin.post(f"{NODES}/{college['id']}/unarchive").status_code == 409
+
+    assert admin.post(f"{NODES}/{campus['id']}/unarchive").json()["status"] == "active"
+    assert admin.post(f"{NODES}/{college['id']}/unarchive").json()["status"] == "active"
+    assert admin.post(f"{NODES}/{root['id']}/archive").status_code == 422

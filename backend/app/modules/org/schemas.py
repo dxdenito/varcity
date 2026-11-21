@@ -46,3 +46,6 @@ class NodeOut(BaseModel):
     name: str
     status: str
     code_locked: bool
+
+class NodeMove(BaseModel):
+    new_parent_id: uuid.UUID
