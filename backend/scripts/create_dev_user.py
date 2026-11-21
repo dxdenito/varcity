@@ -17,6 +17,7 @@ from app.modules.iam.passwords import WeakPasswordError, hash_password, validate
 
 def main() -> None:
     email = input("Email: ").strip().lower()
+    full_name = input("Full name: ").strip() or None
     password = getpass.getpass("Password (hidden while typing): ")
     try:
         validate_password(password, email=email)
@@ -28,6 +29,7 @@ def main() -> None:
             sys.exit("An account with that email already exists.")
         user = UserAccount(
             email=email,
+            full_name=full_name,
             password_hash=hash_password(password),
             is_superuser=True,
             password_changed_at=datetime.now(UTC),

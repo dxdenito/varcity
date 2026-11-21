@@ -11,6 +11,8 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
   Search,
   Settings,
   ShieldCheck,
@@ -22,8 +24,9 @@ import {
   X,
 } from 'lucide-react'
 
-import { useBranding } from '../../theme/branding-context'
 import { useAuth } from '../../auth/auth-context'
+import { useBranding } from '../../theme/branding-context'
+import BrandLogo from '../BrandLogo'
 
 // Placeholder menu copied from the design mockup. It will later be built
 // from the enabled modules and the signed-in user's permissions.
@@ -44,37 +47,32 @@ const NAV_ITEMS = [
   { label: 'System Administration', icon: ShieldCheck },
 ]
 
-function initials(name) {
-  const words = name.split(/\s+/).filter(Boolean)
-  if (words.length <= 1) return (words[0] ?? '?').slice(0, 2).toUpperCase()
-  return words
-    .slice(0, 2)
-    .map((word) => word[0])
-    .join('')
-    .toUpperCase()
-}
+// A per-device display preference. Per-user preferences will live on the server later.
+const COLLAPSED_KEY = 'varcity.sidebarCollapsed'
 
-function Logo({ branding }) {
-  if (branding.logo_url) {
-    return (
-      <img
-        src={branding.logo_url}
-        alt=""
-        className="h-10 w-10 rounded bg-white/10 object-contain"
-      />
-    )
+function readCollapsed() {
+  try {
+    return localStorage.getItem(COLLAPSED_KEY) === '1'
+  } catch {
+    return false
   }
-  return (
-    <div className="flex h-10 w-10 items-center justify-center rounded bg-brand-600 text-sm font-bold text-on-brand">
-      {initials(branding.short_name)}
-    </div>
-  )
 }
 
 export default function AppShell({ children }) {
   const branding = useBranding()
   const { user, logout } = useAuth()
-  const [menuOpen, setMenuOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false) // mobile slide-in menu
+  const [collapsed, setCollapsed] = useState(readCollapsed) // desktop icon rail
+
+  function toggleCollapsed() {
+    const next = !collapsed
+    setCollapsed(next)
+    try {
+      localStorage.setItem(COLLAPSED_KEY, next ? '1' : '0')
+    } catch {
+      // storage unavailable: the choice just won't be remembered
+    }
+  }
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
@@ -88,13 +86,16 @@ export default function AppShell({ children }) {
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col bg-sidebar text-on-sidebar transition-transform lg:translate-x-0 ${
-          menuOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        id="sidebar"
+        className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col bg-sidebar text-on-sidebar transition-[width,transform] duration-200 lg:translate-x-0 ${
+          collapsed ? 'lg:w-16' : 'lg:w-64'
+        } ${menuOpen ? 'translate-x-0' : '-translate-x-full'}`}
       >
-        <div className="flex items-center gap-3 px-5 py-5">
-          <Logo branding={branding} />
-          <div className="min-w-0 flex-1">
+        <div
+          className={`flex items-center gap-3 px-5 py-5 ${collapsed ? 'lg:justify-center lg:px-0' : ''}`}
+        >
+          <BrandLogo branding={branding} size="h-10 w-10 shrink-0" />
+          <div className={`min-w-0 flex-1 ${collapsed ? 'lg:hidden' : ''}`}>
             <div className="truncate font-semibold leading-tight">{branding.short_name}</div>
             <div className="text-xs opacity-70">University ERP</div>
           </div>
@@ -113,19 +114,25 @@ export default function AppShell({ children }) {
             <button
               key={label}
               type="button"
+              title={collapsed ? label : undefined}
+              aria-label={label}
               aria-current={active ? 'page' : undefined}
               className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors hover:bg-on-sidebar/10 ${
-                active ? 'bg-on-sidebar/15 font-medium' : 'opacity-90'
-              }`}
+                collapsed ? 'lg:justify-center lg:px-0' : ''
+              } ${active ? 'bg-on-sidebar/15 font-medium' : 'opacity-90'}`}
             >
-              <Icon size={18} aria-hidden="true" />
-              {label}
+              <Icon size={18} aria-hidden="true" className="shrink-0" />
+              <span className={collapsed ? 'lg:hidden' : ''}>{label}</span>
             </button>
           ))}
         </nav>
       </aside>
 
-      <div className="flex min-h-screen flex-col lg:pl-64">
+      <div
+        className={`flex min-h-screen flex-col transition-[padding] duration-200 ${
+          collapsed ? 'lg:pl-16' : 'lg:pl-64'
+        }`}
+      >
         <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3">
           <button
             type="button"
@@ -134,6 +141,16 @@ export default function AppShell({ children }) {
             aria-label="Open menu"
           >
             <Menu size={20} />
+          </button>
+          <button
+            type="button"
+            className="hidden rounded p-2 hover:bg-slate-100 lg:block"
+            onClick={toggleCollapsed}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-expanded={!collapsed}
+            aria-controls="sidebar"
+          >
+            {collapsed ? <PanelLeftOpen size={20} /> : <PanelLeftClose size={20} />}
           </button>
 
           <div className="relative max-w-xl flex-1">
@@ -159,7 +176,7 @@ export default function AppShell({ children }) {
                 <User size={16} aria-hidden="true" />
               </div>
               <span className="hidden max-w-48 truncate text-sm text-slate-600 sm:inline">
-                {user.email}
+                {user.full_name || user.email}
               </span>
             </div>
             <button

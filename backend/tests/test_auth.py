@@ -22,7 +22,9 @@ def user():
     """A committed test account, removed afterwards (its sessions go with it)."""
     email = f"{uuid.uuid4()}@example.com"
     with SessionLocal() as session:
-        account = UserAccount(email=email, password_hash=hash_password(PASSWORD))
+        account = UserAccount(
+            email=email, password_hash=hash_password(PASSWORD), full_name="Test User"
+        )
         session.add(account)
         session.commit()
         user_id = account.id
@@ -53,6 +55,7 @@ def test_login_sets_an_httponly_cookie_and_returns_a_csrf_token(client, user):
 
     body = response.json()
     assert body["user"]["email"] == user["email"]
+    assert body["user"]["full_name"] == "Test User"
     assert body["csrf_token"]
     assert "password" not in response.text.lower()
 

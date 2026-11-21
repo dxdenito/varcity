@@ -43,6 +43,7 @@ def _payload(**overrides):
         "short_name": "TU",
         "primary_color": "#047857",
         "sidebar_color": "#022c22",
+        "admin_full_name": "First Administrator",
         "admin_email": ADMIN_EMAIL,
         "admin_password": ADMIN_PASSWORD,
     }
@@ -120,3 +121,8 @@ def test_setup_code_format_and_tolerant_matching():
     assert verify_setup_code(code.lower())  # case does not matter
     assert verify_setup_code(code.replace("-", " "))  # dashes or spaces both fine
     assert not verify_setup_code("AAAA-BBBB-CCCC")
+
+def test_blank_name_is_rejected(fresh_install, client):
+    response = client.post(COMPLETE, json=_payload(admin_full_name="   "))
+    assert response.status_code == 422
+    assert _nothing_was_created()

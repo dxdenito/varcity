@@ -13,6 +13,7 @@ class UserPublic(BaseModel):
 
     id: uuid.UUID
     email: str
+    full_name: str | None
     is_superuser: bool
 
 

@@ -37,6 +37,7 @@ class UserAccount(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=new_id)
     email: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    full_name: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Empty until the account is activated.
     password_hash: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(

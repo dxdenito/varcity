@@ -25,6 +25,7 @@ export default function SetupPage() {
     shortName: '',
     primaryColor: '#1d4ed8',
     sidebarColor: '#0f2557',
+    adminFullName: '',
     adminEmail: '',
     adminPassword: '',
     confirmPassword: '',
@@ -58,6 +59,7 @@ export default function SetupPage() {
           short_name: form.shortName,
           primary_color: form.primaryColor,
           sidebar_color: form.sidebarColor,
+          admin_full_name: form.adminFullName,
           admin_email: form.adminEmail,
           admin_password: form.adminPassword,
         },
@@ -186,6 +188,16 @@ export default function SetupPage() {
 
         <section className="space-y-4 rounded-xl bg-white p-6 shadow-sm">
           <h2 className="font-medium text-slate-900">3. System administrator</h2>
+          <Field label="Full name">
+            <input
+              required
+              maxLength={200}
+              autoComplete="off"
+              value={form.adminFullName}
+              onChange={update('adminFullName')}
+              className={inputClass}
+            />
+          </Field>
           <Field label="Email">
             <input
               type="email"

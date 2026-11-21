@@ -71,6 +71,7 @@ def complete_setup(db: Session, payload: SetupRequest, ip_address: str | None) -
         raise AccountAlreadyExists
 
     admin = UserAccount(
+        full_name=payload.admin_full_name,
         email=email,
         password_hash=hash_password(payload.admin_password),
         status="active",
