@@ -27,7 +27,7 @@ class NodeTypeOut(BaseModel):
 class NodeCreate(BaseModel):
     type_id: uuid.UUID
     parent_id: uuid.UUID | None = None
-    code: str = Field(pattern=CODE_PATTERN)
+    code: str | None = Field(default=None, pattern=CODE_PATTERN)
     name: NodeName
 
 
@@ -42,7 +42,7 @@ class NodeOut(BaseModel):
     id: uuid.UUID
     type_id: uuid.UUID
     parent_id: uuid.UUID | None
-    code: str
+    code: str | None
     name: str
     status: str
     code_locked: bool

@@ -71,7 +71,7 @@ class Node(Base):
     parent_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("org.node.id"), nullable=True
     )
-    code: Mapped[str] = mapped_column(Text, nullable=False)
+    code: Mapped[str | None] = mapped_column(Text, nullable=True)
     name: Mapped[str] = mapped_column(Text, nullable=False)
     path: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(

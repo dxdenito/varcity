@@ -14,6 +14,8 @@ from app.modules.settings.service import get_branding
 
 LEVEL_NAMES = {"college": ("College", "Colleges"), "faculty": ("Faculty", "Faculties")}
 
+UNSET = object()
+
 
 class OrgError(Exception):
     def __init__(self, message: str):
@@ -140,8 +142,8 @@ def create_node(
             raise OrgError(f"A {node_type.name} cannot be placed under a {parent_type.name}.")
         path = f"{parent.path}{node_id}/"
 
-    code = code.upper()
-    if _code_taken(db, type_id, code):
+    code = code.upper() if code else None
+    if code and _code_taken(db, type_id, code):
         raise Conflict(f"A {node_type.name} with the code {code} already exists.")
 
     node = Node(id=node_id, type_id=type_id, parent_id=parent_id, code=code, name=name, path=path)
@@ -165,7 +167,7 @@ def update_node(
     ctx: AuthContext,
     node_id: uuid.UUID,
     *,
-    code: str | None,
+    code: str | None | object,
     name: str | None,
     ip_address: str | None,
 ) -> Node:
@@ -174,12 +176,14 @@ def update_node(
         raise NotFound("Entry not found.")
 
     old = {"code": node.code, "name": node.name}
-    if code is not None and code.upper() != node.code:
-        if node.code_locked:
-            raise Conflict("The code cannot be changed because it has already been used.")
-        if _code_taken(db, node.type_id, code.upper(), except_id=node.id):
-            raise Conflict(f"The code {code.upper()} is already in use at this level.")
-        node.code = code.upper()
+    if code is not UNSET:
+        new_code = code.upper() if code else None
+        if new_code != node.code:
+            if node.code_locked:
+                raise Conflict("The code cannot be changed because it has already been used.")
+            if new_code and _code_taken(db, node.type_id, new_code, except_id=node.id):
+                raise Conflict(f"The code {new_code} is already in use at this level.")
+            node.code = new_code
     if name is not None:
         node.name = name
 

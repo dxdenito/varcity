@@ -27,11 +27,12 @@ import {
 import { useAuth } from '../../auth/auth-context'
 import { useBranding } from '../../theme/branding-context'
 import BrandLogo from '../BrandLogo'
+import { NavLink } from 'react-router-dom'
 
 // Placeholder menu copied from the design mockup. It will later be built
 // from the enabled modules and the signed-in user's permissions.
 const NAV_ITEMS = [
-  { label: 'Dashboard', icon: LayoutDashboard, active: true },
+  { label: 'Dashboard', icon: LayoutDashboard, to: '/' },
   { label: 'Institutional Directory', icon: Contact },
   { label: 'Academic Management', icon: GraduationCap },
   { label: 'Admissions', icon: ClipboardList },
@@ -43,7 +44,7 @@ const NAV_ITEMS = [
   { label: 'Hostel Management', icon: Building2 },
   { label: 'Workflow', icon: Workflow },
   { label: 'Reports & Analytics', icon: TrendingUp },
-  { label: 'Settings', icon: Settings },
+  { label: 'Settings', icon: Settings, to: '/settings/organization' },
   { label: 'System Administration', icon: ShieldCheck },
 ]
 
@@ -110,21 +111,47 @@ export default function AppShell({ children }) {
         </div>
 
         <nav aria-label="Main" className="flex-1 space-y-1 overflow-y-auto px-3 pb-4">
-          {NAV_ITEMS.map(({ label, icon: Icon, active }) => (
-            <button
-              key={label}
-              type="button"
-              title={collapsed ? label : undefined}
-              aria-label={label}
-              aria-current={active ? 'page' : undefined}
-              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors hover:bg-on-sidebar/10 ${
-                collapsed ? 'lg:justify-center lg:px-0' : ''
-              } ${active ? 'bg-on-sidebar/15 font-medium' : 'opacity-90'}`}
-            >
-              <Icon size={18} aria-hidden="true" className="shrink-0" />
-              <span className={collapsed ? 'lg:hidden' : ''}>{label}</span>
-            </button>
-          ))}
+          {NAV_ITEMS.map(({ label, icon: Icon, to }) => {
+            const itemClass = `flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors hover:bg-on-sidebar/10 ${
+              collapsed ? 'lg:justify-center lg:px-0' : ''
+            }`
+            const content = (
+              <>
+                <Icon size={18} aria-hidden="true" className="shrink-0" />
+                <span className={collapsed ? 'lg:hidden' : ''}>{label}</span>
+              </>
+            )
+
+            if (!to) {
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  title={collapsed ? label : undefined}
+                  aria-label={label}
+                  className={`${itemClass} opacity-90`}
+                >
+                  {content}
+                </button>
+              )
+            }
+
+            return (
+              <NavLink
+                key={label}
+                to={to}
+                end
+                title={collapsed ? label : undefined}
+                aria-label={label}
+                onClick={() => setMenuOpen(false)}
+                className={({ isActive }) =>
+                  `${itemClass} ${isActive ? 'bg-on-sidebar/15 font-medium' : 'opacity-90'}`
+                }
+              >
+                {content}
+              </NavLink>
+            )
+          })}
         </nav>
       </aside>
 

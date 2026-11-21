@@ -202,3 +202,21 @@ def test_archive_needs_dependents_dealt_with_first(clean_org, admin):
     assert admin.post(f"{NODES}/{campus['id']}/unarchive").json()["status"] == "active"
     assert admin.post(f"{NODES}/{college['id']}/unarchive").json()["status"] == "active"
     assert admin.post(f"{NODES}/{root['id']}/archive").status_code == 422
+
+def test_codes_are_optional_and_can_be_cleared(clean_org, admin):
+    _initialize(admin)
+    types, root = _tree(admin)
+
+    first = _create(admin, types, "campus", root, None, "Main Campus").json()
+    second = _create(admin, types, "campus", root, None, "Satellite").json()
+    assert first["code"] is None and second["code"] is None
+
+    url = f"{NODES}/{second['id']}"
+    assert admin.patch(url, json={"code": "c001"}).json()["code"] == "C001"
+    assert admin.patch(url, json={"code": None}).json()["code"] is None
+
+    admin.patch(url, json={"code": "c001"})
+    with SessionLocal() as session:
+        session.execute(update(Node).where(Node.code == "C001").values(code_locked=True))
+        session.commit()
+    assert admin.patch(url, json={"code": None}).status_code == 409

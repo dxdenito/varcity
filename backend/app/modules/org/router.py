@@ -101,7 +101,12 @@ def update_node(
     return _execute(
         db,
         lambda: service.update_node(
-            db, ctx, node_id, code=payload.code, name=payload.name, ip_address=_ip(request)
+            db,
+            ctx,
+            node_id,
+            code=payload.code if "code" in payload.model_fields_set else service.UNSET,
+            name=payload.name,
+            ip_address=_ip(request),
         ),
     )
 

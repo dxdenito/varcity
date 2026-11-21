@@ -8,6 +8,9 @@ import LoginPage from './pages/LoginPage'
 import SetupPage from './pages/SetupPage'
 import BrandingProvider from './theme/BrandingProvider'
 import { useBranding } from './theme/branding-context'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+
+import OrganizationPage from './features/org/OrganizationPage'
 
 const SHADES = ['50', '100', '200', '300', '400', '500', '600', '700', '800', '900', '950']
 
@@ -53,7 +56,11 @@ function AuthenticatedApp() {
 
   return (
     <AppShell>
-      <DashboardPlaceholder />
+      <Routes>
+        <Route path="/" element={<DashboardPlaceholder />} />
+        <Route path="/settings/organization" element={<OrganizationPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </AppShell>
   )
 }
@@ -81,7 +88,9 @@ function Gate() {
 export default function App() {
   return (
     <BrandingProvider>
-      <Gate />
+      <BrowserRouter>
+        <Gate />
+      </BrowserRouter>
     </BrandingProvider>
   )
 }
