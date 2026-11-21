@@ -20,6 +20,7 @@ if not _test_url.rsplit("/", 1)[-1].split("?")[0].endswith("_test"):
     raise RuntimeError("The test database name must end with '_test'")
 
 os.environ["VARCITY_DATABASE_URL"] = _test_url
+os.environ["VARCITY_SECRET_KEY"] = "test-only-secret-key-not-for-real-use-0123456789"
 
 
 @pytest.fixture(scope="session", autouse=True)
