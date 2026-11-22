@@ -49,3 +49,24 @@ class NodeOut(BaseModel):
 
 class NodeMove(BaseModel):
     new_parent_id: uuid.UUID
+
+
+class ImportRow(BaseModel):
+    row: int
+    status: Literal["create", "skip", "error"]
+    level: str
+    name: str
+    code: str
+    parent: str
+    messages: list[str]
+
+
+class ImportSummary(BaseModel):
+    create: int
+    skip: int
+    error: int
+
+
+class ImportPreview(BaseModel):
+    summary: ImportSummary
+    rows: list[ImportRow]
