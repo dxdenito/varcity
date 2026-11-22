@@ -3,7 +3,11 @@ import { SlidersHorizontal } from 'lucide-react'
 
 import PageHeader from '../../components/ui/PageHeader'
 
-const TABS = [{ label: 'Regional', to: 'regional' }]
+const TABS = [
+  { label: 'University', to: 'university' },
+  { label: 'Appearance', to: 'appearance' },
+  { label: 'Regional', to: 'regional' },
+]
 
 export default function GeneralSettingsPage() {
   return (

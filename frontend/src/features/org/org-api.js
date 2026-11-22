@@ -20,3 +20,11 @@ export const moveNode = (id, newParentId) =>
 export const archiveNode = (id) => api(`${BASE}/nodes/${id}/archive`, { method: 'POST' })
 export const unarchiveNode = (id) => api(`${BASE}/nodes/${id}/unarchive`, { method: 'POST' })
 export const deleteNode = (id) => api(`${BASE}/nodes/${id}`, { method: 'DELETE' })
+function upload(path, file) {
+  const body = new FormData()
+  body.append('file', file)
+  return api(path, { method: 'POST', body })
+}
+
+export const previewImport = (nodeId, file) => upload(`${BASE}/nodes/${nodeId}/import/preview`, file)
+export const importFile = (nodeId, file) => upload(`${BASE}/nodes/${nodeId}/import`, file)

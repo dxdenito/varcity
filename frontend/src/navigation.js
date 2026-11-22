@@ -20,7 +20,6 @@ import {
 
 const SETTINGS_ITEMS = [
   { label: 'Organization', to: '/settings/organization', icon: Network },
-  { label: 'University', to: '/settings/university', icon: Landmark },
   { label: 'General Settings', to: '/settings/general', icon: SlidersHorizontal },
 ]
 

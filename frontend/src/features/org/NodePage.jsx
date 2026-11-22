@@ -6,6 +6,7 @@ import ChildrenSection from './ChildrenSection'
 import DetailsSection from './DetailsSection'
 import ManageSection from './ManageSection'
 import { ancestorsOf } from './tree'
+import ImportExportSection from './ImportExportSection'
 
 export default function NodePage({ node, ctx }) {
   const type = ctx.typeById.get(node.type_id)
@@ -49,6 +50,7 @@ export default function NodePage({ node, ctx }) {
       />
 
       <ChildrenSection node={node} ctx={ctx} />
+      <ImportExportSection node={node} ctx={ctx} />
       <DetailsSection node={node} ctx={ctx} />
       {ctx.canEdit && <ManageSection node={node} ctx={ctx} />}
     </div>

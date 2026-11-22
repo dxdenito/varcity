@@ -11,7 +11,8 @@ import { useBranding } from './theme/branding-context'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 
 import OrganizationPage from './features/org/OrganizationPage'
-import UniversityPage from './features/settings/UniversityPage'
+import AppearanceTab from './features/settings/AppearanceTab'
+import UniversityTab from './features/settings/UniversityTab'
 import GeneralSettingsPage from './features/settings/GeneralSettingsPage'
 import RegionalTab from './features/settings/RegionalTab'
 
@@ -61,11 +62,16 @@ function AuthenticatedApp() {
     <AppShell>
       <Routes>
         <Route path="/" element={<DashboardPlaceholder />} />
-        <Route path="/settings" element={<Navigate to="/settings/university" replace />} />
-        <Route path="/settings/university" element={<UniversityPage />} />
+        <Route path="/settings" element={<Navigate to="/settings/general" replace />} />
+        <Route
+          path="/settings/university"
+          element={<Navigate to="/settings/general/university" replace />}
+        />
         <Route path="/settings/organization/:nodeId?" element={<OrganizationPage />} />
         <Route path="/settings/general" element={<GeneralSettingsPage />}>
-          <Route index element={<Navigate to="regional" replace />} />
+          <Route index element={<Navigate to="university" replace />} />
+          <Route path="university" element={<UniversityTab />} />
+          <Route path="appearance" element={<AppearanceTab />} />
           <Route path="regional" element={<RegionalTab />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
