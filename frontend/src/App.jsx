@@ -63,7 +63,7 @@ function AuthenticatedApp() {
         <Route path="/" element={<DashboardPlaceholder />} />
         <Route path="/settings" element={<Navigate to="/settings/university" replace />} />
         <Route path="/settings/university" element={<UniversityPage />} />
-        <Route path="/settings/organization" element={<OrganizationPage />} />
+        <Route path="/settings/organization/:nodeId?" element={<OrganizationPage />} />
         <Route path="/settings/general" element={<GeneralSettingsPage />}>
           <Route index element={<Navigate to="regional" replace />} />
           <Route path="regional" element={<RegionalTab />} />

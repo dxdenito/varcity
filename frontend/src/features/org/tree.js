@@ -33,3 +33,11 @@ export function pathLabel(index, node) {
   }
   return names.join(' › ')
 }
+
+export function ancestorsOf(index, node) {
+  const trail = []
+  for (let current = node; current; current = index.byId.get(current.parent_id)) {
+    trail.unshift(current)
+  }
+  return trail
+}
