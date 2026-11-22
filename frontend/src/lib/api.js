@@ -1,4 +1,3 @@
-// The CSRF token lives in memory only (never in localStorage or cookies).
 let csrfToken = null
 
 export function setCsrfToken(token) {
@@ -12,7 +11,6 @@ export class ApiError extends Error {
   }
 }
 
-// FastAPI returns { detail: "text" } or, for validation errors, a list of messages.
 function errorMessage(data) {
   if (!data || !data.detail) return null
   if (typeof data.detail === 'string') return data.detail
@@ -20,9 +18,10 @@ function errorMessage(data) {
   return null
 }
 
-export async function api(path, { method = 'GET', body } = {}) {
+export async function api(path, { method = 'GET', body, cache } = {}) {
   const headers = {}
-  if (body !== undefined) headers['Content-Type'] = 'application/json'
+  const isForm = body instanceof FormData
+  if (body !== undefined && !isForm) headers['Content-Type'] = 'application/json'
   if (method !== 'GET' && csrfToken) headers['X-CSRF-Token'] = csrfToken
 
   let response
@@ -30,8 +29,9 @@ export async function api(path, { method = 'GET', body } = {}) {
     response = await fetch(path, {
       method,
       headers,
-      credentials: 'same-origin', // send the session cookie
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      cache,
+      credentials: 'same-origin',
+      body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
     })
   } catch {
     throw new ApiError(0, 'Cannot reach the server. Check your connection and try again.')

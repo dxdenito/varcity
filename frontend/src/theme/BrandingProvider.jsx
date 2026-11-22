@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
+import { api } from '../lib/api'
 import { BrandingContext, FALLBACK_BRANDING } from './branding-context'
 
 const SHADES = ['50', '100', '200', '300', '400', '500', '600', '700', '800', '900', '950']
 
-// Write the server's colours into CSS variables on the page.
 function applyColors(colors) {
   const root = document.documentElement
   for (const shade of SHADES) {
@@ -18,35 +18,27 @@ function applyColors(colors) {
 export default function BrandingProvider({ children }) {
   const [branding, setBranding] = useState(null)
 
-  useEffect(() => {
-    let cancelled = false
-
-    fetch('/api/v1/public/branding')
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        return res.json()
-      })
-      .then((data) => {
-        if (cancelled) return
-        applyColors(data.colors)
-        document.title = data.university_name
-        setBranding(data)
-      })
-      .catch(() => {
-        if (cancelled) return
-        document.title = FALLBACK_BRANDING.university_name
-        setBranding(FALLBACK_BRANDING)
-      })
-
-    return () => {
-      cancelled = true
+  const load = useCallback(async (fresh = false) => {
+    try {
+      const data = await api('/api/v1/public/branding', { cache: fresh ? 'reload' : undefined })
+      applyColors(data.colors)
+      document.title = data.university_name
+      setBranding(data)
+    } catch {
+      setBranding((current) => current ?? FALLBACK_BRANDING)
     }
   }, [])
 
-  // Show an empty page (not the wrong colours) while branding loads.
-  if (!branding) {
-    return <div className="min-h-screen bg-slate-100" aria-busy="true" />
-  }
+  useEffect(() => {
+    load()
+  }, [load])
 
-  return <BrandingContext.Provider value={branding}>{children}</BrandingContext.Provider>
+  const value = useMemo(
+    () => (branding ? { ...branding, refresh: () => load(true) } : null),
+    [branding, load],
+  )
+
+  if (!value) return <div className="min-h-screen bg-slate-100" aria-busy="true" />
+
+  return <BrandingContext.Provider value={value}>{children}</BrandingContext.Provider>
 }

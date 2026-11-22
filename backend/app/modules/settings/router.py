@@ -5,7 +5,7 @@ from app.core.db import get_db
 from app.modules.iam.deps import require_auth, require_superuser
 from app.modules.iam.service import AuthContext
 from app.modules.settings import service
-from app.modules.settings.schemas import BrandingConfig, BrandingPublic, UniversityProfile
+from app.modules.settings.schemas import BrandingConfig, BrandingPublic, UniversityProfile,GeneralConfig
 
 router = APIRouter(prefix="/api/v1/public", tags=["public"])
 admin_router = APIRouter(prefix="/api/v1/settings", tags=["settings"])
@@ -77,3 +77,19 @@ def delete_logo(
 ):
     service.remove_logo(db, ctx, _ip(request))
     db.commit()
+
+@admin_router.get("/general", response_model=GeneralConfig)
+def read_general(_: AuthContext = Depends(require_auth), db: Session = Depends(get_db)):
+    return service.get_general(db)
+
+
+@admin_router.put("/general", response_model=GeneralConfig)
+def update_general(
+    payload: GeneralConfig,
+    request: Request,
+    ctx: AuthContext = Depends(require_superuser),
+    db: Session = Depends(get_db),
+):
+    service.update_general(db, ctx, payload, _ip(request))
+    db.commit()
+    return service.get_general(db)

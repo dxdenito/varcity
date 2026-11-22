@@ -7,13 +7,14 @@ from app.main import app
 from app.modules.settings.models import AppSetting, Asset
 
 PROFILE, LOGO = "/api/v1/settings/university", "/api/v1/settings/university/logo"
+GENERAL = "/api/v1/settings/general"
 PUBLIC, PUBLIC_LOGO = "/api/v1/public/branding", "/api/v1/public/branding/logo"
 PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 100
 
 
 def _reset():
     with SessionLocal() as session:
-        session.execute(delete(AppSetting).where(AppSetting.key == "branding"))
+        session.execute(delete(AppSetting).where(AppSetting.key.in_(["branding", "general"])))
         session.execute(delete(Asset))
         session.commit()
 
@@ -99,3 +100,26 @@ def test_logo_must_really_be_an_image_of_a_small_size(clean, admin):
     assert not_an_image.status_code == 422
     assert too_big.status_code == 422
     assert empty.status_code == 422
+
+def test_general_settings_are_validated_and_published(clean, admin):
+    defaults = TestClient(app).get(PUBLIC).json()
+    assert defaults["timezone"] == "Africa/Nairobi"
+    assert defaults["date_format"] == "DD/MM/YYYY"
+
+    unknown_zone = {"timezone": "Mars/Olympus", "date_format": "DD/MM/YYYY"}
+    bad_format = {"timezone": "Africa/Nairobi", "date_format": "DD-MM"}
+    assert admin.put(GENERAL, json=unknown_zone).status_code == 422
+    assert admin.put(GENERAL, json=bad_format).status_code == 422
+
+    saved = admin.put(GENERAL, json={"timezone": "Africa/Kampala", "date_format": "D MMM YYYY"})
+    assert saved.status_code == 200
+    public = TestClient(app).get(PUBLIC).json()
+    assert public["timezone"] == "Africa/Kampala"
+    assert public["date_format"] == "D MMM YYYY"
+
+
+def test_only_super_admins_can_change_general_settings(clean, signed_in):
+    regular = signed_in()
+    unchanged = {"timezone": "Africa/Nairobi", "date_format": "DD/MM/YYYY"}
+    assert regular.get(GENERAL).status_code == 200
+    assert regular.put(GENERAL, json=unchanged).status_code == 403

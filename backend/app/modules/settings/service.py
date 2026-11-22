@@ -16,12 +16,14 @@ from app.modules.settings.schemas import (
     BrandingConfig,
     BrandingPublic,
     UniversityProfile,
+    GeneralConfig,
 )
 
 logger = logging.getLogger(__name__)
 
 BRANDING_KEY = "branding"
 LOGO_KEY = "logo"
+GENERAL_KEY = "general"
 MAX_LOGO_BYTES = 512 * 1024
 
 
@@ -38,6 +40,43 @@ def _load_config(db: Session) -> BrandingConfig:
             logger.warning("Stored branding is invalid; using defaults")
     return BrandingConfig()
 
+def _load_general(db: Session) -> GeneralConfig:
+    row = db.get(AppSetting, GENERAL_KEY)
+    if row is not None:
+        try:
+            return GeneralConfig.model_validate(row.value)
+        except ValidationError:
+            logger.warning("Stored general settings are invalid; using defaults")
+    return GeneralConfig()
+
+
+def get_general(db: Session) -> GeneralConfig:
+    return _load_general(db)
+
+
+def update_general(
+    db: Session, ctx: AuthContext, config: GeneralConfig, ip_address: str | None
+) -> None:
+    old = _load_general(db)
+    row = db.get(AppSetting, GENERAL_KEY)
+    if row is None:
+        db.add(AppSetting(key=GENERAL_KEY, value=config.model_dump(), updated_by=ctx.user.id))
+    else:
+        row.value = config.model_dump()
+        row.updated_by = ctx.user.id
+        row.updated_at = datetime.now(UTC)
+
+    audit.record(
+        db,
+        action="settings.general.update",
+        module="settings",
+        actor_id=ctx.user.id,
+        entity_type="app_setting",
+        entity_id=GENERAL_KEY,
+        old_values=old.model_dump(),
+        new_values=config.model_dump(),
+        ip_address=clean_ip(ip_address),
+    )
 
 def _logo_url(db: Session) -> str | None:
     digest = db.scalar(select(Asset.sha256).where(Asset.key == LOGO_KEY))
@@ -46,12 +85,15 @@ def _logo_url(db: Session) -> str | None:
 
 def get_branding(db: Session) -> BrandingPublic:
     config = _load_config(db)
+    general = _load_general(db)
     return BrandingPublic(
         university_name=config.university_name,
         short_name=config.short_name,
         motto=config.motto,
         logo_url=_logo_url(db),
         show_powered_by=config.show_powered_by,
+        timezone=general.timezone,
+        date_format=general.date_format,
         colors=BrandingColors(
             primary=build_palette(config.primary_color),
             on_primary=readable_text_color(config.primary_color),

@@ -34,7 +34,7 @@ export default function LoginPage() {
         <section className="flex flex-col justify-between p-6 lg:p-12">
           <div className="flex items-center gap-3">
             <div className="rounded-xl bg-white/90 p-1 shadow-lg">
-              <BrandLogo branding={branding} size="h-11 w-11" />
+              <BrandLogo branding={branding} size="h-14 w-14" />
             </div>
             <span className="text-lg font-semibold">{branding.short_name}</span>
           </div>
@@ -43,7 +43,9 @@ export default function LoginPage() {
             <h1 className="text-4xl font-semibold leading-tight">
               Welcome to {branding.university_name}
             </h1>
-            <p className="mt-4 text-lg opacity-80">One account for every university system.</p>
+            <p className="mt-4 text-lg opacity-80">
+              {branding.motto || 'One account for every university system.'}
+            </p>
           </div>
 
           <p className="hidden text-sm opacity-60 lg:block">
