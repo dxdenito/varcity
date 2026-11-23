@@ -21,6 +21,8 @@ if not _test_url.rsplit("/", 1)[-1].split("?")[0].endswith("_test"):
 
 os.environ["VARCITY_DATABASE_URL"] = _test_url
 os.environ["VARCITY_SECRET_KEY"] = "test-only-secret-key-not-for-real-use-0123456789"
+os.environ["VARCITY_SESSION_IDLE_MINUTES"] = "30"
+os.environ["VARCITY_SESSION_ABSOLUTE_HOURS"] = "12"
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -29,20 +31,28 @@ def database():
     from alembic import command
     from alembic.config import Config
 
-    from app.core.db import engine
+    import app.modules.all_permissions  # noqa: F401
+    from app.core.db import SessionLocal, engine
+    from app.modules.iam.access import sync_registry
 
     config = Config(str(BACKEND_DIR / "alembic.ini"))
     config.set_main_option("script_location", str(BACKEND_DIR / "migrations"))
 
     command.downgrade(config, "base")
     command.upgrade(config, "head")
+    with SessionLocal() as session:
+        sync_registry(session)
+        session.commit()
     yield
     engine.dispose()
 
 
 @pytest.fixture
-def db():
-    """A database session. Anything not committed is rolled back after the test."""
+def db(make_user):
+    """A database session. Anything not committed is rolled back after the test.
+
+    Requesting make_user makes this session roll back before test users are deleted.
+    """
     from app.core.db import SessionLocal
 
     with SessionLocal() as session:
@@ -95,6 +105,99 @@ def signed_in(make_user):
             json={"email": user["email"], "password": "a-long-test-passphrase"},
         )
         client.headers["X-CSRF-Token"] = response.json()["csrf_token"]
+        client.user = user
         return client
 
     return _sign_in
+
+
+@pytest.fixture
+def grant():
+    """Give a user a throwaway role holding one permission, optionally at a node."""
+    import uuid
+
+    from sqlalchemy import delete
+
+    from app.core.db import SessionLocal
+    from app.modules.iam.rbac_models import Role, RoleAssignment, RolePermission
+
+    role_ids = []
+
+    def _grant(user, code, node_id=None):
+        with SessionLocal() as session:
+            role = Role(name=f"Test role {uuid.uuid4()}")
+            session.add(role)
+            session.flush()
+            session.add(RolePermission(role_id=role.id, permission_code=code))
+            session.add(
+                RoleAssignment(user_id=user["id"], role_id=role.id, node_id=node_id)
+            )
+            session.commit()
+            role_ids.append(role.id)
+
+    yield _grant
+    with SessionLocal() as session:
+        session.execute(
+            delete(RoleAssignment).where(RoleAssignment.role_id.in_(role_ids))
+        )
+        session.execute(delete(Role).where(Role.id.in_(role_ids)))
+        session.commit()
+
+
+@pytest.fixture
+def role_name():
+    import uuid
+
+    from sqlalchemy import delete
+
+    from app.core.db import SessionLocal
+    from app.modules.iam.rbac_models import Role
+
+    names = []
+
+    def _name():
+        name = f"Test {uuid.uuid4().hex[:10]}"
+        names.append(name)
+        return name
+
+    yield _name
+    with SessionLocal() as session:
+        session.execute(delete(Role).where(Role.name.in_(names)))
+        session.commit()
+
+
+@pytest.fixture
+def two_nodes():
+    import uuid
+
+    from sqlalchemy import delete
+
+    from app.core.db import SessionLocal
+    from app.core.ids import new_id
+    from app.modules.org.models import Node, NodeType
+
+    with SessionLocal() as session:
+        node_type = NodeType(
+            code=f"t{uuid.uuid4().hex[:8]}", name="Level", plural_name="Levels"
+        )
+        session.add(node_type)
+        session.flush()
+        ids = []
+        for _ in range(2):
+            node_id = new_id()
+            session.add(
+                Node(
+                    id=node_id,
+                    type_id=node_type.id,
+                    name="Original",
+                    path=f"/{node_id}/",
+                )
+            )
+            ids.append(node_id)
+        type_id = node_type.id
+        session.commit()
+    yield ids
+    with SessionLocal() as session:
+        session.execute(delete(Node).where(Node.id.in_(ids)))
+        session.execute(delete(NodeType).where(NodeType.id == type_id))
+        session.commit()

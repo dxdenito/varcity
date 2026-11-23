@@ -2,10 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, Upload
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
-from app.modules.iam.deps import require_auth, require_superuser
+from app.modules.iam.deps import require_permission
 from app.modules.iam.service import AuthContext
+from app.modules.settings import permissions as perm
 from app.modules.settings import service
-from app.modules.settings.schemas import BrandingConfig, BrandingPublic, UniversityProfile,GeneralConfig
+from app.modules.settings.schemas import BrandingConfig, BrandingPublic, GeneralConfig, UniversityProfile
 
 router = APIRouter(prefix="/api/v1/public", tags=["public"])
 admin_router = APIRouter(prefix="/api/v1/settings", tags=["settings"])
@@ -37,7 +38,10 @@ def read_logo(db: Session = Depends(get_db)):
 
 
 @admin_router.get("/university", response_model=UniversityProfile)
-def read_university(_: AuthContext = Depends(require_auth), db: Session = Depends(get_db)):
+def read_university(
+    _: AuthContext = Depends(require_permission(perm.UNIVERSITY_VIEW, anywhere=True)),
+    db: Session = Depends(get_db),
+):
     return service.get_university_profile(db)
 
 
@@ -45,7 +49,7 @@ def read_university(_: AuthContext = Depends(require_auth), db: Session = Depend
 def update_university(
     payload: BrandingConfig,
     request: Request,
-    ctx: AuthContext = Depends(require_superuser),
+    ctx: AuthContext = Depends(require_permission(perm.UNIVERSITY_UPDATE)),
     db: Session = Depends(get_db),
 ):
     service.update_university_profile(db, ctx, payload, _ip(request))
@@ -57,7 +61,7 @@ def update_university(
 def upload_logo(
     file: UploadFile,
     request: Request,
-    ctx: AuthContext = Depends(require_superuser),
+    ctx: AuthContext = Depends(require_permission(perm.UNIVERSITY_UPDATE)),
     db: Session = Depends(get_db),
 ):
     data = file.file.read(service.MAX_LOGO_BYTES + 1)
@@ -72,14 +76,18 @@ def upload_logo(
 @admin_router.delete("/university/logo", status_code=204)
 def delete_logo(
     request: Request,
-    ctx: AuthContext = Depends(require_superuser),
+    ctx: AuthContext = Depends(require_permission(perm.UNIVERSITY_UPDATE)),
     db: Session = Depends(get_db),
 ):
     service.remove_logo(db, ctx, _ip(request))
     db.commit()
 
+
 @admin_router.get("/general", response_model=GeneralConfig)
-def read_general(_: AuthContext = Depends(require_auth), db: Session = Depends(get_db)):
+def read_general(
+    _: AuthContext = Depends(require_permission(perm.GENERAL_VIEW, anywhere=True)),
+    db: Session = Depends(get_db),
+):
     return service.get_general(db)
 
 
@@ -87,7 +95,7 @@ def read_general(_: AuthContext = Depends(require_auth), db: Session = Depends(g
 def update_general(
     payload: GeneralConfig,
     request: Request,
-    ctx: AuthContext = Depends(require_superuser),
+    ctx: AuthContext = Depends(require_permission(perm.GENERAL_UPDATE)),
     db: Session = Depends(get_db),
 ):
     service.update_general(db, ctx, payload, _ip(request))

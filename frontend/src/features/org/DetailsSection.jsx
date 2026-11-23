@@ -5,9 +5,11 @@ import Field from '../../components/ui/Field'
 import SectionCard from '../../components/ui/SectionCard'
 import { buttonPrimary, buttonSecondary, inputClass } from '../../components/ui/styles'
 import { updateNode } from './org-api'
+import { ORG } from './org-permissions'
 
 export default function DetailsSection({ node, ctx }) {
-  const { typeById, canEdit, reload } = ctx
+  const { typeById, canNode, reload } = ctx
+  const canEdit = canNode(ORG.update, node)
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(node.name)
   const [code, setCode] = useState(node.code ?? '')

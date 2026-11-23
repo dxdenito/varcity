@@ -17,6 +17,13 @@ class UserPublic(BaseModel):
     is_superuser: bool
 
 
+class PermissionSummary(BaseModel):
+    all: bool
+    everywhere: list[str]
+    scoped: dict[str, list[uuid.UUID]]
+
+
 class AuthResponse(BaseModel):
     user: UserPublic
     csrf_token: str
+    permissions: PermissionSummary

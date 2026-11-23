@@ -13,17 +13,28 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   TrendingUp,
+  UserCog,
   Users,
   Wallet,
   Workflow,
 } from 'lucide-react'
 
 const SETTINGS_ITEMS = [
-  { label: 'Organization', to: '/settings/organization', icon: Network },
-  { label: 'General Settings', to: '/settings/general', icon: SlidersHorizontal },
+  { label: 'Organization', to: '/settings/organization', icon: Network,     perm: ['settings.university.view', 'settings.general.view'], },
+  {
+    label: 'General Settings',
+    to: '/settings/general',
+    icon: SlidersHorizontal,
+    perm: 'settings.university.view',
+  },
+]
+
+const ADMIN_ITEMS = [
+  { label: 'Users', to: '/admin/users', icon: UserCog, perm: 'iam.user.view' },
 ]
 
 // Entries without "to" are placeholders for modules that are not built yet.
+// "perm" hides an entry from users who cannot view it at any scope.
 export const NAV_ITEMS = [
   { label: 'Dashboard', icon: LayoutDashboard, to: '/' },
   { label: 'Institutional Directory', icon: Contact },
@@ -38,5 +49,15 @@ export const NAV_ITEMS = [
   { label: 'Workflow', icon: Workflow },
   { label: 'Reports & Analytics', icon: TrendingUp },
   { label: 'Settings', icon: Settings, to: '/settings', children: SETTINGS_ITEMS },
-  { label: 'System Administration', icon: ShieldCheck },
+  { label: 'System Administration', icon: ShieldCheck, to: '/admin', children: ADMIN_ITEMS },
 ]
+
+export function visibleItems(items, canAnywhere) {
+  const allowed = (item) => !item.perm || [].concat(item.perm).some(canAnywhere)
+
+  return items
+    .map((item) =>
+      item.children ? { ...item, children: item.children.filter(allowed) } : item,
+    )
+    .filter((item) => (item.children ? item.children.length > 0 : allowed(item)))
+}

@@ -65,13 +65,14 @@ def test_invalid_profile_values_are_rejected(clean, admin):
     assert admin.put(PROFILE, json=_profile(university_name="")).status_code == 422
 
 
-def test_only_super_admins_can_change_the_profile(clean, signed_in):
+def test_profile_access_follows_permissions(clean, signed_in, grant):
     regular = signed_in()
+    assert regular.get(PROFILE).status_code == 403
+    grant(regular.user, "settings.university.view")
     assert regular.get(PROFILE).status_code == 200
     assert regular.put(PROFILE, json=_profile()).status_code == 403
     assert regular.post(LOGO, files={"file": ("logo.png", PNG, "image/png")}).status_code == 403
     assert TestClient(app).get(PROFILE).status_code == 401
-
 
 def test_logo_can_be_uploaded_served_and_removed(clean, admin):
     upload = admin.post(LOGO, files={"file": ("logo.png", PNG, "image/png")})
@@ -118,8 +119,10 @@ def test_general_settings_are_validated_and_published(clean, admin):
     assert public["date_format"] == "D MMM YYYY"
 
 
-def test_only_super_admins_can_change_general_settings(clean, signed_in):
+def test_general_settings_access_follows_permissions(clean, signed_in, grant):
     regular = signed_in()
     unchanged = {"timezone": "Africa/Nairobi", "date_format": "DD/MM/YYYY"}
+    assert regular.get(GENERAL).status_code == 403
+    grant(regular.user, "settings.general.view")
     assert regular.get(GENERAL).status_code == 200
     assert regular.put(GENERAL, json=unchanged).status_code == 403

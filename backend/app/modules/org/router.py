@@ -11,9 +11,11 @@ from app.core import tabular
 from app.core.db import get_db
 from app.core.net import clean_ip
 from app.modules.audit import service as audit
-from app.modules.iam.deps import require_auth, require_superuser
+from app.modules.iam.access import Access
+from app.modules.iam.deps import get_access, require_permission
 from app.modules.iam.service import AuthContext
 from app.modules.org import bulk, service
+from app.modules.org import permissions as perm
 from app.modules.org.models import Node
 from app.modules.org.schemas import (
     ImportPreview,
@@ -41,6 +43,15 @@ TEMPLATE_ROWS = [
 
 def _ip(request: Request) -> str | None:
     return request.client.host if request.client else None
+
+
+def _forbid_unless(allowed: bool) -> None:
+    if not allowed:
+        raise HTTPException(status_code=403, detail="Not permitted")
+
+
+def _allowed_at(access: Access, code: str, node_id: uuid.UUID | None) -> bool:
+    return access.can(code) if node_id is None else access.can_on_node(code, node_id)
 
 
 def _execute(db: Session, action):
@@ -94,12 +105,18 @@ def _download(file_format: str, base_name: str, title: str, headers: list[str], 
 
 
 @router.get("/node-types", response_model=list[NodeTypeOut])
-def list_node_types(_: AuthContext = Depends(require_auth), db: Session = Depends(get_db)):
+def list_node_types(
+    _: AuthContext = Depends(require_permission(perm.VIEW, anywhere=True)),
+    db: Session = Depends(get_db),
+):
     return service.list_node_types(db)
 
 
 @router.get("/nodes", response_model=list[NodeOut])
-def list_nodes(_: AuthContext = Depends(require_auth), db: Session = Depends(get_db)):
+def list_nodes(
+    _: AuthContext = Depends(require_permission(perm.VIEW, anywhere=True)),
+    db: Session = Depends(get_db),
+):
     return service.list_nodes(db)
 
 
@@ -107,7 +124,7 @@ def list_nodes(_: AuthContext = Depends(require_auth), db: Session = Depends(get
 def initialize(
     payload: InitializeRequest,
     request: Request,
-    ctx: AuthContext = Depends(require_superuser),
+    ctx: AuthContext = Depends(require_permission(perm.INITIALIZE)),
     db: Session = Depends(get_db),
 ):
     _execute(
@@ -123,9 +140,11 @@ def initialize(
 def create_node(
     payload: NodeCreate,
     request: Request,
-    ctx: AuthContext = Depends(require_superuser),
+    ctx: AuthContext = Depends(require_permission(perm.CREATE, anywhere=True)),
+    access: Access = Depends(get_access),
     db: Session = Depends(get_db),
 ):
+    _forbid_unless(_allowed_at(access, perm.CREATE, payload.parent_id))
     return _execute(
         db,
         lambda: service.create_node(
@@ -145,7 +164,7 @@ def update_node(
     node_id: uuid.UUID,
     payload: NodeUpdate,
     request: Request,
-    ctx: AuthContext = Depends(require_superuser),
+    ctx: AuthContext = Depends(require_permission(perm.UPDATE, node_param="node_id")),
     db: Session = Depends(get_db),
 ):
     return _execute(
@@ -165,7 +184,7 @@ def update_node(
 def delete_node(
     node_id: uuid.UUID,
     request: Request,
-    ctx: AuthContext = Depends(require_superuser),
+    ctx: AuthContext = Depends(require_permission(perm.DELETE, node_param="node_id")),
     db: Session = Depends(get_db),
 ):
     _execute(db, lambda: service.delete_node(db, ctx, node_id, _ip(request)))
@@ -176,9 +195,11 @@ def move_node(
     node_id: uuid.UUID,
     payload: NodeMove,
     request: Request,
-    ctx: AuthContext = Depends(require_superuser),
+    ctx: AuthContext = Depends(require_permission(perm.MOVE, node_param="node_id")),
+    access: Access = Depends(get_access),
     db: Session = Depends(get_db),
 ):
+    _forbid_unless(_allowed_at(access, perm.MOVE, payload.new_parent_id))
     return _execute(
         db, lambda: service.move_node(db, ctx, node_id, payload.new_parent_id, _ip(request))
     )
@@ -188,7 +209,7 @@ def move_node(
 def archive_node(
     node_id: uuid.UUID,
     request: Request,
-    ctx: AuthContext = Depends(require_superuser),
+    ctx: AuthContext = Depends(require_permission(perm.ARCHIVE, node_param="node_id")),
     db: Session = Depends(get_db),
 ):
     return _execute(db, lambda: service.archive_node(db, ctx, node_id, _ip(request)))
@@ -198,7 +219,7 @@ def archive_node(
 def unarchive_node(
     node_id: uuid.UUID,
     request: Request,
-    ctx: AuthContext = Depends(require_superuser),
+    ctx: AuthContext = Depends(require_permission(perm.ARCHIVE, node_param="node_id")),
     db: Session = Depends(get_db),
 ):
     return _execute(db, lambda: service.unarchive_node(db, ctx, node_id, _ip(request)))
@@ -209,7 +230,7 @@ def export_node(
     node_id: uuid.UUID,
     request: Request,
     file_format: Literal["csv", "xlsx", "pdf"] = Query("csv", alias="format"),
-    ctx: AuthContext = Depends(require_auth),
+    ctx: AuthContext = Depends(require_permission(perm.EXPORT, node_param="node_id")),
     db: Session = Depends(get_db),
 ):
     node = _get_node(db, node_id)
@@ -231,7 +252,7 @@ def export_node(
 @router.get("/import-template")
 def import_template(
     file_format: Literal["csv", "xlsx"] = Query("xlsx", alias="format"),
-    _: AuthContext = Depends(require_auth),
+    _: AuthContext = Depends(require_permission(perm.VIEW, anywhere=True)),
 ):
     return _download(file_format, "organization-import-template", "Template", bulk.COLUMNS[:4], TEMPLATE_ROWS)
 
@@ -240,7 +261,7 @@ def import_template(
 def preview_import(
     node_id: uuid.UUID,
     file: UploadFile,
-    _: AuthContext = Depends(require_superuser),
+    _: AuthContext = Depends(require_permission(perm.IMPORT, node_param="node_id")),
     db: Session = Depends(get_db),
 ):
     node = _get_node(db, node_id)
@@ -253,7 +274,7 @@ def import_nodes(
     node_id: uuid.UUID,
     file: UploadFile,
     request: Request,
-    ctx: AuthContext = Depends(require_superuser),
+    ctx: AuthContext = Depends(require_permission(perm.IMPORT, node_param="node_id")),
     db: Session = Depends(get_db),
 ):
     node = _get_node(db, node_id)

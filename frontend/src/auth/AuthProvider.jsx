@@ -3,9 +3,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api, setCsrfToken } from '../lib/api'
 import { AuthContext } from './auth-context'
 
+const ANONYMOUS = { status: 'anonymous', user: null, permissions: null }
+
+function authenticated(data) {
+  return { status: 'authenticated', user: data.user, permissions: data.permissions }
+}
+
 // status: 'loading' | 'anonymous' | 'authenticated'
 export default function AuthProvider({ children }) {
-  const [state, setState] = useState({ status: 'loading', user: null })
+  const [state, setState] = useState({ status: 'loading', user: null, permissions: null })
 
   // On page load, ask the server whether the cookie still holds a valid session.
   useEffect(() => {
@@ -14,10 +20,10 @@ export default function AuthProvider({ children }) {
       .then((data) => {
         if (cancelled) return
         setCsrfToken(data.csrf_token)
-        setState({ status: 'authenticated', user: data.user })
+        setState(authenticated(data))
       })
       .catch(() => {
-        if (!cancelled) setState({ status: 'anonymous', user: null })
+        if (!cancelled) setState(ANONYMOUS)
       })
     return () => {
       cancelled = true
@@ -27,7 +33,7 @@ export default function AuthProvider({ children }) {
   const login = useCallback(async (email, password) => {
     const data = await api('/api/v1/auth/login', { method: 'POST', body: { email, password } })
     setCsrfToken(data.csrf_token)
-    setState({ status: 'authenticated', user: data.user })
+    setState(authenticated(data))
   }, [])
 
   const logout = useCallback(async () => {
@@ -35,7 +41,7 @@ export default function AuthProvider({ children }) {
       await api('/api/v1/auth/logout', { method: 'POST' })
     } finally {
       setCsrfToken(null)
-      setState({ status: 'anonymous', user: null })
+      setState(ANONYMOUS)
     }
   }, [])
 

@@ -12,10 +12,18 @@ from app.modules.settings.router import router as settings_router
 from app.modules.setup.router import router as setup_router
 from app.modules.setup.service import announce_setup_code_if_needed
 from app.modules.org.router import router as org_router
+import app.modules.all_permissions  # noqa: F401
+from app.core.db import SessionLocal
+from app.modules.iam.access import sync_registry
+from app.modules.iam.role_router import router as role_router
+from app.modules.iam.user_router import router as user_router
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    with SessionLocal() as db:
+        sync_registry(db)
+        db.commit()
     announce_setup_code_if_needed()
     yield
 
@@ -28,6 +36,8 @@ app.include_router(admin_router)
 app.include_router(setup_router)
 app.include_router(settings_admin_router)
 app.include_router(org_router)
+app.include_router(role_router)
+app.include_router(user_router)
 
 
 @app.get("/api/v1/health/live", tags=["health"])

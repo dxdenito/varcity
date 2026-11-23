@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from './auth/auth-context'
 import AuthProvider from './auth/AuthProvider'
 import AppShell from './components/layout/AppShell'
+import RequirePermission from './components/RequirePermission'
 import { api } from './lib/api'
 import LoginPage from './pages/LoginPage'
 import SetupPage from './pages/SetupPage'
@@ -13,8 +14,12 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import OrganizationPage from './features/org/OrganizationPage'
 import AppearanceTab from './features/settings/AppearanceTab'
 import UniversityTab from './features/settings/UniversityTab'
-import GeneralSettingsPage from './features/settings/GeneralSettingsPage'
+import GeneralSettingsPage, { FirstTabRedirect } from './features/settings/GeneralSettingsPage'
 import RegionalTab from './features/settings/RegionalTab'
+import { SETTINGS } from './features/settings/settings-permissions'
+import { ADMIN } from './features/admin/admin-permissions'
+import UserPage from './features/admin/UserPage'
+import UsersPage from './features/admin/UsersPage'
 
 const SHADES = ['50', '100', '200', '300', '400', '500', '600', '700', '800', '900', '950']
 
@@ -67,13 +72,65 @@ function AuthenticatedApp() {
           path="/settings/university"
           element={<Navigate to="/settings/general/university" replace />}
         />
-        <Route path="/settings/organization/:nodeId?" element={<OrganizationPage />} />
-        <Route path="/settings/general" element={<GeneralSettingsPage />}>
-          <Route index element={<Navigate to="university" replace />} />
-          <Route path="university" element={<UniversityTab />} />
-          <Route path="appearance" element={<AppearanceTab />} />
-          <Route path="regional" element={<RegionalTab />} />
+        <Route
+          path="/settings/organization/:nodeId?"
+          element={
+            <RequirePermission perm="org.node.view">
+              <OrganizationPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/settings/general"
+          element={
+            <RequirePermission perm={[SETTINGS.universityView, SETTINGS.generalView]}>
+              <GeneralSettingsPage />
+            </RequirePermission>
+          }
+        >
+          <Route index element={<FirstTabRedirect />} />
+          <Route
+            path="university"
+            element={
+              <RequirePermission perm={SETTINGS.universityView}>
+                <UniversityTab />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="appearance"
+            element={
+              <RequirePermission perm={SETTINGS.universityView}>
+                <AppearanceTab />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="regional"
+            element={
+              <RequirePermission perm={SETTINGS.generalView}>
+                <RegionalTab />
+              </RequirePermission>
+            }
+          />
         </Route>
+        <Route path="/admin" element={<Navigate to="/admin/users" replace />} />
+        <Route
+          path="/admin/users"
+          element={
+            <RequirePermission perm={ADMIN.userView}>
+              <UsersPage />
+            </RequirePermission>
+          }
+        />
+        <Route
+          path="/admin/users/:userId"
+          element={
+            <RequirePermission perm={ADMIN.userView}>
+              <UserPage />
+            </RequirePermission>
+          }
+        />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AppShell>

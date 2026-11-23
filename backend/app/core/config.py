@@ -20,7 +20,7 @@ class Settings(BaseSettings):
 
     # Sessions and cookies
     session_cookie_name: str = "varcity_session"
-    session_idle_minutes: int = 30
+    session_idle_minutes: int = 120
     session_absolute_hours: int = 12
     # Must be True in production (HTTPS). False allows http://localhost in development.
     cookie_secure: bool = False

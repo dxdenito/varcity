@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Globe, RotateCcw, Save } from 'lucide-react'
 
-import { useAuth } from '../../auth/auth-context'
+import { usePermissions } from '../../auth/usePermissions'
 import Field from '../../components/ui/Field'
 import SectionCard from '../../components/ui/SectionCard'
 import { buttonPrimary, buttonSecondary, inputClass } from '../../components/ui/styles'
@@ -18,9 +18,9 @@ function listTimeZones(current) {
 }
 
 export default function RegionalTab() {
-  const { user } = useAuth()
+  const { can } = usePermissions()
   const branding = useBranding()
-  const canEdit = user.is_superuser
+  const canEdit = can(SETTINGS.generalUpdate)
 
   const [saved, setSaved] = useState(null)
   const [form, setForm] = useState(null)

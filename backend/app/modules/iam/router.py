@@ -6,7 +6,8 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.db import get_db
 from app.modules.iam import service
-from app.modules.iam.deps import require_auth, require_csrf, require_superuser
+from app.modules.iam.access import Access
+from app.modules.iam.deps import get_access, require_auth, require_csrf, require_permission
 from app.modules.iam.schemas import AuthResponse, LoginRequest
 from app.modules.iam.service import AuthContext
 from app.modules.iam.tokens import csrf_for
@@ -49,13 +50,19 @@ def login(
         samesite="lax",
         path="/",
     )
-    return AuthResponse(user=result.user, csrf_token=csrf_for(result.token))
+    return AuthResponse(
+        user=result.user,
+        csrf_token=csrf_for(result.token),
+        permissions=Access.load(db, result.user).effective(),
+    )
 
 
 @router.get("/me", response_model=AuthResponse)
-def me(ctx: AuthContext = Depends(require_auth)):
+def me(ctx: AuthContext = Depends(require_auth), access: Access = Depends(get_access)):
     """Who is signed in? Also how the frontend gets its CSRF token after a reload."""
-    return AuthResponse(user=ctx.user, csrf_token=ctx.csrf_token)
+    return AuthResponse(
+        user=ctx.user, csrf_token=ctx.csrf_token, permissions=access.effective()
+    )
 
 
 @router.post("/logout", status_code=204)
@@ -69,6 +76,7 @@ def logout(
     db.commit()
     response.delete_cookie(settings.session_cookie_name, path="/")
 
+
 admin_router = APIRouter(prefix="/api/v1/admin/users", tags=["admin"])
 
 
@@ -76,7 +84,7 @@ admin_router = APIRouter(prefix="/api/v1/admin/users", tags=["admin"])
 def unlock_user(
     user_id: uuid.UUID,
     request: Request,
-    ctx: AuthContext = Depends(require_superuser),
+    ctx: AuthContext = Depends(require_permission("iam.user.unlock")),
     db: Session = Depends(get_db),
 ):
     try:

@@ -1,18 +1,19 @@
 import { Palette } from 'lucide-react'
 
-import { useAuth } from '../../auth/auth-context'
+import { usePermissions } from '../../auth/usePermissions'
 import ColourPreview from '../../components/ColourPreview'
 import Field from '../../components/ui/Field'
 import FormActions from '../../components/ui/FormActions'
 import SectionCard from '../../components/ui/SectionCard'
 import Toggle from '../../components/ui/Toggle'
 import { useProfileSection } from './useProfileSection'
+import { SETTINGS } from './settings-permissions'
 
 const KEYS = ['primary_color', 'sidebar_color', 'show_powered_by']
 
 export default function AppearanceTab() {
-  const { user } = useAuth()
-  const canEdit = user.is_superuser
+  const { can } = usePermissions()
+  const canEdit = can(SETTINGS.universityUpdate)
   const section = useProfileSection(KEYS)
   const { profile, form, loadError, setField } = section
 

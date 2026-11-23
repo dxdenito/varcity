@@ -4,6 +4,7 @@ import { Download, FileSpreadsheet, Upload } from 'lucide-react'
 import SectionCard from '../../components/ui/SectionCard'
 import { buttonPrimary, buttonSecondary } from '../../components/ui/styles'
 import { importFile, previewImport } from './org-api'
+import { ORG } from './org-permissions'
 
 const STATUS_STYLE = {
   create: 'bg-green-100 text-green-800',
@@ -14,7 +15,9 @@ const STATUS_LABEL = { create: 'Create', skip: 'Exists', error: 'Error' }
 const MAX_SHOWN = 200
 
 export default function ImportExportSection({ node, ctx }) {
-  const { types, index, canEdit, reload } = ctx
+  const { types, index, canNode, reload } = ctx
+  const canExport = canNode(ORG.export, node)
+  const canImport = canNode(ORG.import, node)
   const fileInput = useRef(null)
   const [file, setFile] = useState(null)
   const [preview, setPreview] = useState(null)
@@ -25,7 +28,7 @@ export default function ImportExportSection({ node, ctx }) {
 
   const hasChildTypes = types.some((type) => type.allowed_parent_type_ids.includes(node.type_id))
   const hasChildren = (index.childrenOf.get(node.id) ?? []).length > 0
-  if (!hasChildTypes && !hasChildren) return null
+  if ((!hasChildTypes && !hasChildren) || (!canExport && !canImport)) return null
 
   const exportUrl = (format) => `/api/v1/org/nodes/${node.id}/export?format=${format}`
   const templateUrl = (format) => `/api/v1/org/import-template?format=${format}`
@@ -82,7 +85,9 @@ export default function ImportExportSection({ node, ctx }) {
       subtitle={`Work with the entries inside ${node.name} in bulk`}
     >
       <div className="space-y-6">
+        {canExport && (
         <div>
+          <p className="text-sm font-medium text-slate-800">Export</p>
           <p className="text-sm font-medium text-slate-800">Export</p>
           <p className="text-xs text-slate-500">Everything inside {node.name}.</p>
           <div className="mt-2 flex flex-wrap gap-2">
@@ -98,8 +103,9 @@ export default function ImportExportSection({ node, ctx }) {
             ))}
           </div>
         </div>
+        )}
 
-        {canEdit && (
+        {canImport && (
           <div className="border-t border-slate-100 pt-6">
             <p className="text-sm font-medium text-slate-800">Import</p>
             <p className="mt-1 text-xs text-slate-500">

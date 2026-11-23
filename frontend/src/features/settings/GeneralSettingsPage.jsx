@@ -1,15 +1,29 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { Navigate, NavLink, Outlet } from 'react-router-dom'
 import { SlidersHorizontal } from 'lucide-react'
 
+import { usePermissions } from '../../auth/usePermissions'
 import PageHeader from '../../components/ui/PageHeader'
+import { SETTINGS } from './settings-permissions'
 
 const TABS = [
-  { label: 'University', to: 'university' },
-  { label: 'Appearance', to: 'appearance' },
-  { label: 'Regional', to: 'regional' },
+  { label: 'University', to: 'university', perm: SETTINGS.universityView },
+  { label: 'Appearance', to: 'appearance', perm: SETTINGS.universityView },
+  { label: 'Regional', to: 'regional', perm: SETTINGS.generalView },
 ]
 
+function useVisibleTabs() {
+  const { canAnywhere } = usePermissions()
+  return TABS.filter((tab) => canAnywhere(tab.perm))
+}
+
+export function FirstTabRedirect() {
+  const tabs = useVisibleTabs()
+  return tabs.length ? <Navigate to={tabs[0].to} replace /> : null
+}
+
 export default function GeneralSettingsPage() {
+  const tabs = useVisibleTabs()
+
   return (
     <div className="mx-auto max-w-4xl space-y-5">
       <PageHeader
@@ -19,7 +33,7 @@ export default function GeneralSettingsPage() {
       />
 
       <nav aria-label="General settings sections" className="flex gap-1 border-b border-slate-200">
-        {TABS.map((tab) => (
+        {tabs.map((tab) => (
           <NavLink
             key={tab.to}
             to={tab.to}

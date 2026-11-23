@@ -135,12 +135,14 @@ def test_an_entry_with_a_used_code_cannot_be_deleted(clean_org, admin):
     assert "already been used" in response.json()["detail"]
 
 
-def test_only_super_admins_can_change_the_structure(clean_org, admin, signed_in):
+def test_structure_access_follows_permissions(clean_org, admin, signed_in, grant):
     _initialize(admin)
     types, root = _tree(admin)
     regular = signed_in()
     body = {"type_id": types["campus"], "parent_id": root["id"], "code": "x1", "name": "X"}
 
+    assert regular.get(NODES).status_code == 403
+    grant(regular.user, "org.node.view")
     assert regular.get(NODES).status_code == 200
     assert regular.post(NODES, json=body).status_code == 403
     assert TestClient(app).get(NODES).status_code == 401

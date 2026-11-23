@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { Bell, ChevronDown, LogOut, Menu, Search, X } from 'lucide-react'
 
 import { useAuth } from '../../auth/auth-context'
-import { NAV_ITEMS } from '../../navigation'
+import { usePermissions } from '../../auth/usePermissions'
+import { NAV_ITEMS, visibleItems } from '../../navigation'
 import { useBranding } from '../../theme/branding-context'
 import BrandLogo from '../BrandLogo'
 
@@ -112,6 +113,8 @@ function NavEntry({ item, collapsed, openGroups, toggleGroup, closeMenu }) {
 export default function AppShell({ children }) {
   const branding = useBranding()
   const { user, logout } = useAuth()
+  const { canAnywhere } = usePermissions()
+  const navItems = useMemo(() => visibleItems(NAV_ITEMS, canAnywhere), [canAnywhere])
   const { pathname } = useLocation()
 
   const [menuOpen, setMenuOpen] = useState(false)
@@ -196,7 +199,7 @@ export default function AppShell({ children }) {
         </div>
 
         <nav aria-label="Main" className="flex-1 space-y-0.5 overflow-y-auto px-3 pb-4">
-          {NAV_ITEMS.map((item) => (
+          {navItems.map((item) => (
             <NavEntry
               key={item.label}
               item={item}

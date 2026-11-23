@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import { Landmark, Trash2, Upload } from 'lucide-react'
 
-import { useAuth } from '../../auth/auth-context'
+import { usePermissions } from '../../auth/usePermissions'
 import BrandLogo from '../../components/BrandLogo'
 import Field from '../../components/ui/Field'
 import FormActions from '../../components/ui/FormActions'
@@ -9,13 +9,14 @@ import SectionCard from '../../components/ui/SectionCard'
 import { buttonDanger, buttonSecondary, inputClass } from '../../components/ui/styles'
 import { api } from '../../lib/api'
 import { PROFILE_URL, useProfileSection } from './useProfileSection'
+import { SETTINGS } from './settings-permissions'
 
 const KEYS = ['university_name', 'short_name', 'motto', 'address', 'website']
 const LOGO_URL = `${PROFILE_URL}/logo`
 
 export default function UniversityTab() {
-  const { user } = useAuth()
-  const canEdit = user.is_superuser
+  const { can } = usePermissions()
+  const canEdit = can(SETTINGS.universityUpdate)
   const fileInput = useRef(null)
   const section = useProfileSection(KEYS)
   const { profile, form, loadError, setField, setMessage, reloadLogo } = section

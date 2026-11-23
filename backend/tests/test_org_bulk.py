@@ -192,10 +192,15 @@ def test_unusable_files_are_rejected_with_a_reason(campus, admin):
     assert fake.status_code == 422
 
 
-def test_anyone_signed_in_can_export_but_only_super_admins_can_import(campus, signed_in):
+def test_export_and_import_follow_permissions(campus, signed_in, grant):
     _, main = campus
     regular = signed_in()
 
+    assert regular.get(_url(main, "export")).status_code == 403
+    assert regular.get("/api/v1/org/import-template").status_code == 403
+
+    grant(regular.user, "org.node.view")
+    grant(regular.user, "org.node.export")
     assert regular.get(_url(main, "export")).status_code == 200
     assert regular.get("/api/v1/org/import-template").status_code == 200
     assert _upload(regular, main, "import/preview", FULL_FILE).status_code == 403

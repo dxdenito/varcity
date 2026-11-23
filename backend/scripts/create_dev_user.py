@@ -1,6 +1,6 @@
-"""Development helper: create a super administrator account.
+"""Development helper: create a user account.
 
-Temporary. The first-run setup wizard replaces this.
+Temporary. The first-run setup wizard and user management replace this.
 """
 
 import getpass
@@ -18,6 +18,7 @@ from app.modules.iam.passwords import WeakPasswordError, hash_password, validate
 def main() -> None:
     email = input("Email: ").strip().lower()
     full_name = input("Full name: ").strip() or None
+    is_superuser = input("Super administrator? (y/N): ").strip().lower() == "y"
     password = getpass.getpass("Password (hidden while typing): ")
     try:
         validate_password(password, email=email)
@@ -31,7 +32,7 @@ def main() -> None:
             email=email,
             full_name=full_name,
             password_hash=hash_password(password),
-            is_superuser=True,
+            is_superuser=is_superuser,
             password_changed_at=datetime.now(UTC),
         )
         db.add(user)
@@ -42,7 +43,7 @@ def main() -> None:
             module="iam",
             entity_type="user_account",
             entity_id=str(user.id),
-            new_values={"email": email, "is_superuser": True},
+            new_values={"email": email, "is_superuser": is_superuser},
             reason="development helper script",
         )
         db.commit()

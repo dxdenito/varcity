@@ -5,13 +5,17 @@ import { Settings2 } from 'lucide-react'
 import SectionCard from '../../components/ui/SectionCard'
 import { buttonDanger, buttonSecondary, inputClass } from '../../components/ui/styles'
 import { archiveNode, deleteNode, moveNode, unarchiveNode } from './org-api'
+import { ORG } from './org-permissions'
 import { descendantIds, pathLabel } from './tree'
 
 export default function ManageSection({ node, ctx }) {
-  const { nodes, index, typeById, reload } = ctx
+  const { nodes, index, typeById, canNode, reload } = ctx
   const navigate = useNavigate()
   const isTop = node.parent_id === null
   const archived = node.status === 'archived'
+  const canMove = canNode(ORG.move, node)
+  const canArchive = canNode(ORG.archive, node)
+  const canDelete = canNode(ORG.delete, node)
 
   const [message, setMessage] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -26,10 +30,11 @@ export default function ManageSection({ node, ctx }) {
           candidate.status === 'active' &&
           nodeType.allowed_parent_type_ids.includes(candidate.type_id) &&
           !excluded.has(candidate.id) &&
-          candidate.id !== node.parent_id,
+          candidate.id !== node.parent_id &&
+          canNode(ORG.move, candidate),
       )
       .map((candidate) => ({ id: candidate.id, label: pathLabel(index, candidate) }))
-  }, [nodes, index, typeById, node])
+  }, [nodes, index, typeById, node, canNode])
 
   const parentId = candidates.some((candidate) => candidate.id === chosenParent)
     ? chosenParent
@@ -82,7 +87,7 @@ export default function ManageSection({ node, ctx }) {
         </p>
       ) : (
         <div className="divide-y divide-slate-100">
-          {!archived && (
+          {canMove && !archived && (
             <div className="flex flex-wrap items-center justify-between gap-3 pb-4">
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-slate-800">Move</p>
@@ -119,38 +124,44 @@ export default function ManageSection({ node, ctx }) {
             </div>
           )}
 
-          <div className="flex flex-wrap items-center justify-between gap-3 py-4">
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-slate-800">
+          {canArchive && (
+            <div className="flex flex-wrap items-center justify-between gap-3 py-4">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-slate-800">
+                  {archived ? 'Restore' : 'Archive'}
+                </p>
+                <p className="text-xs text-slate-500">
+                  {archived
+                    ? 'Make it active again. Its parent must be active.'
+                    : 'Hide it from new work but keep its history. Everything inside must be archived first.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  run(() => (archived ? unarchiveNode(node.id) : archiveNode(node.id)))
+                }
+                className={buttonSecondary}
+              >
                 {archived ? 'Restore' : 'Archive'}
-              </p>
-              <p className="text-xs text-slate-500">
-                {archived
-                  ? 'Make it active again. Its parent must be active.'
-                  : 'Hide it from new work but keep its history. Everything inside must be archived first.'}
-              </p>
+              </button>
             </div>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => run(() => (archived ? unarchiveNode(node.id) : archiveNode(node.id)))}
-              className={buttonSecondary}
-            >
-              {archived ? 'Restore' : 'Archive'}
-            </button>
-          </div>
+          )}
 
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-4">
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-slate-800">Delete</p>
-              <p className="text-xs text-slate-500">
-                Only possible when nothing depends on it. Otherwise archive it instead.
-              </p>
+          {canDelete && (
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-4">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-slate-800">Delete</p>
+                <p className="text-xs text-slate-500">
+                  Only possible when nothing depends on it. Otherwise archive it instead.
+                </p>
+              </div>
+              <button type="button" disabled={busy} onClick={handleDelete} className={buttonDanger}>
+                Delete
+              </button>
             </div>
-            <button type="button" disabled={busy} onClick={handleDelete} className={buttonDanger}>
-              Delete
-            </button>
-          </div>
+          )}
         </div>
       )}
     </SectionCard>

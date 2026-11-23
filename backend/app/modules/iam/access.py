@@ -1,0 +1,180 @@
+import uuid
+from collections import defaultdict
+from dataclasses import dataclass
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.modules.iam import registry
+from app.modules.iam.rbac_models import Permission, Role, RoleAssignment, RolePermission
+from app.modules.org.models import Node
+
+
+def _ensure_starter_roles(db: Session) -> dict[str, Role]:
+    existing = {
+        role.system_key: role
+        for role in db.scalars(select(Role).where(Role.system_key.is_not(None)))
+    }
+    for key, (name, description) in registry.STARTER_ROLES.items():
+        if key not in existing:
+            role = Role(
+                system_key=key,
+                name=name,
+                description=description,
+                grants_all=(key == "super_admin"),
+            )
+            db.add(role)
+            existing[key] = role
+    db.flush()
+    return existing
+
+
+def sync_registry(db: Session) -> None:
+    """Make the database match the permissions declared in code.
+
+    A new permission is granted to its default starter roles once, when it is
+    first created. Later changes made by admins are never overwritten.
+    """
+    roles = _ensure_starter_roles(db)
+    stored = {p.code: p for p in db.scalars(select(Permission))}
+    created = []
+    for declared in registry.all_permissions():
+        row = stored.get(declared.code)
+        if row is None:
+            db.add(
+                Permission(
+                    code=declared.code,
+                    module=declared.module,
+                    description=declared.description,
+                )
+            )
+            created.append(declared)
+        elif row.description != declared.description:
+            row.description = declared.description
+    db.flush()
+    for declared in created:
+        for key in declared.roles:
+            db.add(
+                RolePermission(
+                    role_id=roles[key].id, permission_code=declared.code
+                )
+            )
+    db.flush()
+
+
+@dataclass(frozen=True)
+class Grant:
+    permissions: frozenset[str]
+    grants_all: bool
+    path: str | None
+    node_id: uuid.UUID | None = None
+
+    def allows(self, code: str) -> bool:
+        return self.grants_all or code in self.permissions
+
+
+@dataclass(frozen=True)
+class Scope:
+    everywhere: bool
+    paths: tuple[str, ...]
+
+
+class Access:
+    """What one user may do. Load once per request, then ask it questions."""
+
+    def __init__(self, db: Session, is_superuser: bool, grants: list[Grant]):
+        self._db = db
+        self._is_superuser = is_superuser
+        self._grants = grants
+
+    @classmethod
+    def load(cls, db: Session, user) -> "Access":
+        rows = db.execute(
+            select(
+                RoleAssignment.role_id,
+                RoleAssignment.node_id,
+                Role.grants_all,
+                Node.path,
+            )
+            .join(Role, Role.id == RoleAssignment.role_id)
+            .outerjoin(Node, Node.id == RoleAssignment.node_id)
+            .where(RoleAssignment.user_id == user.id)
+        ).all()
+        role_ids = {row.role_id for row in rows}
+        permissions: dict[uuid.UUID, set[str]] = defaultdict(set)
+        if role_ids:
+            for role_id, code in db.execute(
+                select(RolePermission.role_id, RolePermission.permission_code).where(
+                    RolePermission.role_id.in_(role_ids)
+                )
+            ):
+                permissions[role_id].add(code)
+        grants = [
+            Grant(
+                frozenset(permissions[row.role_id]),
+                row.grants_all,
+                row.path,
+                row.node_id,
+            )
+            for row in rows
+        ]
+        return cls(db, user.is_superuser, grants)
+
+    def can(self, code: str, node_path: str | None = None) -> bool:
+        """With no node_path, only a university-wide grant counts."""
+        if self._is_superuser:
+            return True
+        for grant in self._grants:
+            if not grant.allows(code):
+                continue
+            if grant.path is None:
+                return True
+            if node_path is not None and node_path.startswith(grant.path):
+                return True
+        return False
+
+    def can_on_node(self, code: str, node_id: uuid.UUID) -> bool:
+        node = self._db.get(Node, node_id)
+        return node is not None and self.can(code, node.path)
+
+    def can_anywhere(self, code: str) -> bool:
+        return self._is_superuser or any(g.allows(code) for g in self._grants)
+
+    def holds_everything(self) -> bool:
+        return self._is_superuser or any(
+            g.grants_all and g.node_id is None for g in self._grants
+        )
+
+    def scope(self, code: str) -> Scope:
+        if self._is_superuser:
+            return Scope(True, ())
+        paths = []
+        for grant in self._grants:
+            if not grant.allows(code):
+                continue
+            if grant.path is None:
+                return Scope(True, ())
+            paths.append(grant.path)
+        return Scope(False, tuple(paths))
+
+    def effective(self) -> dict:
+        """A summary for the frontend: university-wide codes and node-scoped codes."""
+        if self._is_superuser or any(
+            g.grants_all and g.node_id is None for g in self._grants
+        ):
+            return {"all": True, "everywhere": [], "scoped": {}}
+        registered = {p.code for p in registry.all_permissions()}
+        everywhere: set[str] = set()
+        scoped: dict[str, set[uuid.UUID]] = defaultdict(set)
+        for grant in self._grants:
+            codes = registered if grant.grants_all else grant.permissions
+            if grant.node_id is None:
+                everywhere |= codes
+            else:
+                for code in codes:
+                    scoped[code].add(grant.node_id)
+        return {
+            "all": False,
+            "everywhere": sorted(everywhere),
+            "scoped": {code: sorted(ids) for code, ids in sorted(scoped.items())},
+        }

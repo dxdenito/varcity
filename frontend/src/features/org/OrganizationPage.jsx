@@ -2,17 +2,17 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Network } from 'lucide-react'
 
-import { useAuth } from '../../auth/auth-context'
+import { usePermissions } from '../../auth/usePermissions'
 import PageHeader from '../../components/ui/PageHeader'
 import InitializePanel from './InitializePanel'
 import NodePage from './NodePage'
 import { loadStructure } from './org-api'
-import { buildIndex } from './tree'
+import { ORG } from './org-permissions'
+import { ancestorsOf, buildIndex } from './tree'
 
 export default function OrganizationPage() {
   const { nodeId } = useParams()
-  const { user } = useAuth()
-  const canEdit = user.is_superuser
+  const { can, canAt } = usePermissions()
 
   const [data, setData] = useState(null)
   const [loadError, setLoadError] = useState(null)
@@ -35,6 +35,10 @@ export default function OrganizationPage() {
     () => new Map((data?.types ?? []).map((type) => [type.id, type])),
     [data],
   )
+  const canNode = useCallback(
+    (code, target) => canAt(code, ancestorsOf(index, target).map((item) => item.id)),
+    [canAt, index],
+  )
 
   if (loadError) {
     return (
@@ -53,7 +57,7 @@ export default function OrganizationPage() {
           title="Organization"
           subtitle="The structure of your university"
         />
-        {canEdit ? (
+        {can(ORG.initialize) ? (
           <InitializePanel onDone={reload} />
         ) : (
           <p className="rounded-xl bg-white p-6 text-sm text-slate-600">
@@ -76,6 +80,6 @@ export default function OrganizationPage() {
     )
   }
 
-  const ctx = { types: data.types, nodes: data.nodes, index, typeById, canEdit, reload }
+  const ctx = { types: data.types, nodes: data.nodes, index, typeById, canNode, reload }
   return <NodePage key={node.id} node={node} ctx={ctx} />
 }

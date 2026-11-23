@@ -4,11 +4,13 @@ import { Building2, Plus } from 'lucide-react'
 
 import Field from '../../components/ui/Field'
 import SectionCard from '../../components/ui/SectionCard'
+import { ORG } from './org-permissions'
 import { buttonPrimary, buttonSecondary, inputClass } from '../../components/ui/styles'
 import { createNode } from './org-api'
 
 export default function ChildrenSection({ node, ctx }) {
-  const { types, index, typeById, canEdit, reload } = ctx
+  const { types, index, typeById, canNode, reload } = ctx
+  const canEdit = canNode(ORG.create, node)
   const children = index.childrenOf.get(node.id) ?? []
   const childTypes = types.filter((type) => type.allowed_parent_type_ids.includes(node.type_id))
 
