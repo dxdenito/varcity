@@ -35,7 +35,9 @@ class RoleOut(BaseModel):
     id: uuid.UUID
     name: str
     description: str | None
+    category: str | None
     is_system: bool
+    is_active: bool
     grants_all: bool
     permissions: list[str]
     assignment_count: int
@@ -46,4 +48,12 @@ class RoleIn(BaseModel):
 
     name: str = Field(min_length=1, max_length=80)
     description: str | None = Field(default=None, max_length=300)
+    category: str | None = Field(default=None, max_length=80)
+    is_active: bool = True
     permissions: list[str] = Field(default_factory=list, max_length=500)
+
+
+class DuplicateIn(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    name: str = Field(min_length=1, max_length=80)

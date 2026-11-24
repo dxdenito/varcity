@@ -22,6 +22,9 @@ def execute(db: Session, action):
     except errors.RoleInvalid as error:
         db.rollback()
         raise HTTPException(status_code=422, detail=error.message)
+    except errors.RoleReauth as error:
+        db.rollback()
+        raise HTTPException(status_code=428, detail=error.message)
     except IntegrityError:
         db.rollback()
         raise HTTPException(

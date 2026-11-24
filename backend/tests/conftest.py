@@ -97,7 +97,7 @@ def signed_in(make_user):
 
     from app.main import app
 
-    def _sign_in(*, is_superuser=False):
+    def _sign_in(*, is_superuser=False, elevated=True):
         user = make_user(is_superuser=is_superuser)
         client = TestClient(app)
         response = client.post(
@@ -106,6 +106,10 @@ def signed_in(make_user):
         )
         client.headers["X-CSRF-Token"] = response.json()["csrf_token"]
         client.user = user
+        if elevated:
+            client.post(
+                "/api/v1/auth/reauth", json={"password": "a-long-test-passphrase"}
+            )
         return client
 
     return _sign_in

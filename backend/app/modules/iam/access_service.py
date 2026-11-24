@@ -15,7 +15,13 @@ from app.modules.iam.rbac_models import (
     RolePermission,
     UserPermission,
 )
-from app.modules.iam.role_service import RoleConflict, RoleForbidden, RoleInvalid, RoleNotFound
+from app.modules.iam.role_service import (
+    RoleConflict,
+    RoleForbidden,
+    RoleInvalid,
+    RoleNotFound,
+    require_fresh,
+)
 from app.modules.iam.service import AuthContext
 from app.modules.iam.user_service import (
     assignments_for,
@@ -118,6 +124,8 @@ def grant_permission(
     if permission.risk != "normal" and not reason:
         raise RoleInvalid("Give a reason when granting a sensitive or critical permission.")
     check_window(valid_from, valid_until, datetime.now(UTC))
+
+    require_fresh(ctx)
 
     same_scope = (
         UserPermission.node_id.is_(None)

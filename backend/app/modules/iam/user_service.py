@@ -10,12 +10,13 @@ from app.modules.audit import service as audit
 from app.modules.iam import permissions as perm
 from app.modules.iam.access import Access
 from app.modules.iam.models import UserAccount
-from app.modules.iam.rbac_models import Role, RoleAssignment, RolePermission
+from app.modules.iam.rbac_models import Permission, Role, RoleAssignment, RolePermission
 from app.modules.iam.role_service import (
     RoleConflict,
     RoleForbidden,
     RoleInvalid,
     RoleNotFound,
+    require_fresh,
 )
 from app.modules.iam.service import AuthContext
 from app.modules.org.models import Node
@@ -145,6 +146,8 @@ def assign_role(
     role = db.get(Role, role_id)
     if role is None:
         raise RoleInvalid("Role not found.")
+    if not role.is_active:
+        raise RoleInvalid("This user type is not active.")
     node = None
     if node_id is not None:
         node = db.get(Node, node_id)
@@ -156,9 +159,12 @@ def assign_role(
     if role.grants_all:
         if not access.holds_everything():
             raise RoleForbidden("Only a super admin can assign the Super Admin role.")
+        critical = True
     else:
-        codes = db.scalars(
-            select(RolePermission.permission_code).where(RolePermission.role_id == role.id)
+        codes = list(
+            db.scalars(
+                select(RolePermission.permission_code).where(RolePermission.role_id == role.id)
+            )
         )
         path = node.path if node else None
         missing = sorted(code for code in codes if not access.can(code, path))
@@ -167,9 +173,20 @@ def assign_role(
                 "You can only assign roles whose permissions you hold here: "
                 + ", ".join(missing)
             )
+        critical = (
+            bool(codes)
+            and db.scalar(
+                select(Permission.code)
+                .where(Permission.code.in_(codes), Permission.risk == "critical")
+                .limit(1)
+            )
+            is not None
+        )
 
     reason = clean_reason(reason)
     check_window(valid_from, valid_until, now)
+    if critical:
+        require_fresh(ctx)
 
     same_scope = (
         RoleAssignment.node_id.is_(None)

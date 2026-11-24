@@ -1,26 +1,29 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
+from app.modules.iam import catalogue
 from app.modules.iam import permissions as perm
 from app.modules.iam import role_service as service
 from app.modules.iam.access import Access
 from app.modules.iam.deps import get_access, require_permission
-from app.modules.iam.role_schemas import GroupNode, PermissionOut, RoleIn, RoleOut
-from app.modules.iam.service import AuthContext
 from app.modules.iam.http import execute as _execute
-from app.modules.iam import catalogue
+from app.modules.iam.role_schemas import (
+    DuplicateIn,
+    GroupNode,
+    PermissionOut,
+    RoleIn,
+    RoleOut,
+)
+from app.modules.iam.service import AuthContext
 
 router = APIRouter(prefix="/api/v1/admin", tags=["roles"])
 
 
 def _ip(request: Request) -> str | None:
     return request.client.host if request.client else None
-
-
-
 
 
 @router.get("/permissions", response_model=list[PermissionOut])
@@ -34,6 +37,7 @@ def list_permissions(
 @router.get("/permission-tree", response_model=list[GroupNode])
 def permission_tree(_: AuthContext = Depends(require_permission(perm.ROLE_VIEW))):
     return catalogue.permission_tree()
+
 
 @router.get("/roles", response_model=list[RoleOut])
 def list_roles(
@@ -68,6 +72,8 @@ def create_role(
             access,
             name=payload.name,
             description=payload.description,
+            category=payload.category,
+            is_active=payload.is_active,
             permissions=payload.permissions,
             ip_address=_ip(request),
         ),
@@ -92,8 +98,27 @@ def update_role(
             role_id,
             name=payload.name,
             description=payload.description,
+            category=payload.category,
+            is_active=payload.is_active,
             permissions=payload.permissions,
             ip_address=_ip(request),
+        ),
+    )
+
+
+@router.post("/roles/{role_id}/duplicate", status_code=201, response_model=RoleOut)
+def duplicate_role(
+    role_id: uuid.UUID,
+    payload: DuplicateIn,
+    request: Request,
+    ctx: AuthContext = Depends(require_permission(perm.ROLE_MANAGE)),
+    access: Access = Depends(get_access),
+    db: Session = Depends(get_db),
+):
+    return _execute(
+        db,
+        lambda: service.duplicate_role(
+            db, ctx, access, role_id, name=payload.name, ip_address=_ip(request)
         ),
     )
 

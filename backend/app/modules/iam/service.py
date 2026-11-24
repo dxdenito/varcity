@@ -215,3 +215,51 @@ def unlock_account(
         new_values={"was_locked": was_locked},
         ip_address=clean_ip(ip_address),
     )
+    
+ELEVATION_WINDOW = timedelta(minutes=10)
+
+
+def reauthenticate(
+    db: Session, ctx: AuthContext, *, password: str, ip_address: str | None
+) -> datetime | None:
+    """Confirm the signed-in user's password. Returns when the confirmation ends, or None.
+
+    This function never commits. The caller must commit in BOTH cases.
+    """
+    now = datetime.now(UTC)
+    user = ctx.user
+    ip = clean_ip(ip_address)
+    if user.locked_until is not None and user.locked_until > now:
+        return None
+
+    if user.password_hash:
+        password_ok, new_hash = verify_password(password, user.password_hash)
+    else:
+        password_ok, new_hash = False, None
+    if not password_ok:
+        _count_failure(db, user, now)
+        audit.record(
+            db,
+            action="auth.reauth.failed",
+            module="iam",
+            actor_id=user.id,
+            entity_type="user_account",
+            entity_id=str(user.id),
+            ip_address=ip,
+        )
+        return None
+
+    if new_hash:
+        user.password_hash = new_hash
+    until = now + ELEVATION_WINDOW
+    ctx.session.elevated_until = until
+    audit.record(
+        db,
+        action="auth.reauth.success",
+        module="iam",
+        actor_id=user.id,
+        entity_type="user_account",
+        entity_id=str(user.id),
+        ip_address=ip,
+    )
+    return until

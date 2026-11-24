@@ -17,34 +17,48 @@ from app.modules.iam.rbac_models import (
 from app.modules.org.models import Node
 
 
-def _ensure_starter_roles(db: Session) -> dict[str, Role]:
+def _ensure_starter_roles(db: Session) -> tuple[dict[str, Role], set[str]]:
     existing = {
         role.system_key: role
         for role in db.scalars(select(Role).where(Role.system_key.is_not(None)))
     }
-    for key, (name, description) in registry.STARTER_ROLES.items():
-        if key not in existing:
-            role = Role(
-                system_key=key,
-                name=name,
-                description=description,
-                grants_all=(key == "super_admin"),
-            )
-            db.add(role)
+    custom_by_name = {
+        role.name.lower(): role
+        for role in db.scalars(select(Role).where(Role.system_key.is_(None)))
+    }
+    created: set[str] = set()
+    for key, (name, description, category) in registry.STARTER_ROLES.items():
+        role = existing.get(key)
+        if role is None:
+            role = custom_by_name.get(name.lower())
+            if role is not None:
+                role.system_key = key
+            else:
+                role = Role(
+                    system_key=key,
+                    name=name,
+                    description=description,
+                    category=category,
+                    grants_all=(key == "super_admin"),
+                )
+                db.add(role)
+                created.add(key)
             existing[key] = role
+        if role.category is None:
+            role.category = category
     db.flush()
-    return existing
+    return existing, created
 
 
 def sync_registry(db: Session) -> None:
-    """Make the database match the permissions declared in code.
+    """Make the database match the permissions and starter user types declared in code.
 
-    A new permission is granted to its default starter roles once, when it is
-    first created. Later changes made by admins are never overwritten.
+    A new permission, or a new starter user type, receives its default grants once.
+    Later changes made by admins are never overwritten.
     """
-    roles = _ensure_starter_roles(db)
+    roles, new_roles = _ensure_starter_roles(db)
     stored = {p.code: p for p in db.scalars(select(Permission))}
-    created = []
+    created: set[str] = set()
     for declared in registry.all_permissions():
         row = stored.get(declared.code)
         if row is None:
@@ -56,18 +70,19 @@ def sync_registry(db: Session) -> None:
                     risk=declared.risk,
                 )
             )
-            created.append(declared)
+            created.add(declared.code)
         else:
             row.description = declared.description
             row.risk = declared.risk
     db.flush()
-    for declared in created:
+    for declared in registry.all_permissions():
         for key in declared.roles:
-            db.add(
-                RolePermission(
-                    role_id=roles[key].id, permission_code=declared.code
+            if declared.code in created or key in new_roles:
+                db.add(
+                    RolePermission(
+                        role_id=roles[key].id, permission_code=declared.code
+                    )
                 )
-            )
     db.flush()
 
 

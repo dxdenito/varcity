@@ -34,6 +34,17 @@ class RoleForbidden(RoleError):
     pass
 
 
+class RoleReauth(RoleError):
+    pass
+
+
+def require_fresh(ctx: AuthContext) -> None:
+    """The session must have confirmed the user's password recently."""
+    until = ctx.session.elevated_until
+    if until is None or until <= datetime.now(UTC):
+        raise RoleReauth("Please confirm your password to continue.")
+
+
 def list_permissions(db: Session) -> list[Permission]:
     return list(db.scalars(select(Permission).order_by(Permission.module, Permission.code)))
 
@@ -43,7 +54,9 @@ def _out(role: Role, codes: list[str], count: int) -> dict:
         "id": role.id,
         "name": role.name,
         "description": role.description,
+        "category": role.category,
         "is_system": role.system_key is not None,
+        "is_active": role.is_active,
         "grants_all": role.grants_all,
         "permissions": codes,
         "assignment_count": count,
@@ -95,11 +108,11 @@ def get_role(db: Session, role_id: uuid.UUID) -> dict:
     return _out(role, _codes_for(db, role.id), _count_for(db, role.id))
 
 
-def _clean(name: str, description: str | None) -> tuple[str, str | None]:
+def _clean(name: str, description: str | None, category: str | None) -> tuple[str, str | None, str | None]:
     name = name.strip()
     if not name:
         raise RoleInvalid("Enter a role name.")
-    return name, (description or "").strip() or None
+    return name, (description or "").strip() or None, (category or "").strip() or None
 
 
 def _ensure_unique_name(db: Session, name: str, exclude_id: uuid.UUID | None = None) -> None:
@@ -140,19 +153,32 @@ def create_role(
     *,
     name: str,
     description: str | None,
+    category: str | None = None,
+    is_active: bool = True,
     permissions: list[str],
+    duplicated_from: str | None = None,
     ip_address: str | None,
 ) -> dict:
-    name, description = _clean(name, description)
+    name, description, category = _clean(name, description, category)
     _ensure_unique_name(db, name)
     codes = _resolve_codes(db, permissions)
     _ensure_can_grant(access, set(permissions))
+    require_fresh(ctx)
 
-    role = Role(name=name, description=description)
+    role = Role(name=name, description=description, category=category, is_active=is_active)
     db.add(role)
     db.flush()
     db.add_all(RolePermission(role_id=role.id, permission_code=c) for c in sorted(codes))
     db.flush()
+    new_values = {
+        "name": name,
+        "description": description,
+        "category": category,
+        "is_active": is_active,
+        "permissions": sorted(codes),
+    }
+    if duplicated_from:
+        new_values["duplicated_from"] = duplicated_from
     audit.record(
         db,
         action="iam.role.created",
@@ -160,7 +186,7 @@ def create_role(
         actor_id=ctx.user.id,
         entity_type="role",
         entity_id=str(role.id),
-        new_values={"name": name, "description": description, "permissions": sorted(codes)},
+        new_values=new_values,
         ip_address=clean_ip(ip_address),
     )
     return get_role(db, role.id)
@@ -174,20 +200,29 @@ def update_role(
     *,
     name: str,
     description: str | None,
+    category: str | None = None,
+    is_active: bool = True,
     permissions: list[str],
     ip_address: str | None,
 ) -> dict:
     role = _load(db, role_id)
     if role.grants_all:
         raise RoleForbidden("The Super Admin role cannot be changed.")
-    name, description = _clean(name, description)
+    name, description, category = _clean(name, description, category)
     _ensure_unique_name(db, name, role.id)
 
     old = set(_codes_for(db, role.id))
     new = _resolve_codes(db, permissions)
     _ensure_can_grant(access, set(permissions) - old)
+    require_fresh(ctx)
 
-    before = {"name": role.name, "description": role.description, "permissions": sorted(old)}
+    before = {
+        "name": role.name,
+        "description": role.description,
+        "category": role.category,
+        "is_active": role.is_active,
+        "permissions": sorted(old),
+    }
     removed, added = old - new, new - old
     if removed:
         db.execute(
@@ -199,6 +234,8 @@ def update_role(
     db.add_all(RolePermission(role_id=role.id, permission_code=c) for c in sorted(added))
     role.name = name
     role.description = description
+    role.category = category
+    role.is_active = is_active
     role.updated_at = datetime.now(UTC)
     db.flush()
     audit.record(
@@ -209,10 +246,41 @@ def update_role(
         entity_type="role",
         entity_id=str(role.id),
         old_values=before,
-        new_values={"name": name, "description": description, "permissions": sorted(new)},
+        new_values={
+            "name": name,
+            "description": description,
+            "category": category,
+            "is_active": is_active,
+            "permissions": sorted(new),
+        },
         ip_address=clean_ip(ip_address),
     )
     return get_role(db, role.id)
+
+
+def duplicate_role(
+    db: Session,
+    ctx: AuthContext,
+    access: Access,
+    role_id: uuid.UUID,
+    *,
+    name: str,
+    ip_address: str | None,
+) -> dict:
+    source = _load(db, role_id)
+    if source.grants_all:
+        raise RoleForbidden("The Super Admin role cannot be duplicated.")
+    return create_role(
+        db,
+        ctx,
+        access,
+        name=name,
+        description=source.description,
+        category=source.category,
+        permissions=_codes_for(db, source.id),
+        duplicated_from=source.name,
+        ip_address=ip_address,
+    )
 
 
 def delete_role(
@@ -226,6 +294,7 @@ def delete_role(
         raise RoleConflict(
             f"This role is assigned to {count} user(s). Remove those assignments first."
         )
+    require_fresh(ctx)
     before = {
         "name": role.name,
         "description": role.description,

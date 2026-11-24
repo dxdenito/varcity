@@ -8,9 +8,10 @@ from app.core.db import get_db
 from app.modules.iam import service
 from app.modules.iam.access import Access
 from app.modules.iam.deps import get_access, require_auth, require_csrf, require_permission
-from app.modules.iam.schemas import AuthResponse, LoginRequest
+from app.modules.iam.schemas import AuthResponse, LoginRequest, ReauthRequest, ReauthResponse
 from app.modules.iam.service import AuthContext
 from app.modules.iam.tokens import csrf_for
+
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -76,6 +77,24 @@ def logout(
     db.commit()
     response.delete_cookie(settings.session_cookie_name, path="/")
 
+
+@router.post("/reauth", response_model=ReauthResponse)
+def reauth(
+    payload: ReauthRequest,
+    request: Request,
+    ctx: AuthContext = Depends(require_csrf),
+    db: Session = Depends(get_db),
+):
+    until = service.reauthenticate(
+        db, ctx, password=payload.password, ip_address=_client_ip(request)
+    )
+    db.commit()
+    if until is None:
+        raise HTTPException(
+            status_code=403,
+            detail="Incorrect password, or the account is temporarily locked.",
+        )
+    return {"elevated_until": until}
 
 admin_router = APIRouter(prefix="/api/v1/admin/users", tags=["admin"])
 

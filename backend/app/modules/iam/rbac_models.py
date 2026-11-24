@@ -53,6 +53,10 @@ class Role(Base):
     system_key: Mapped[str | None] = mapped_column(Text, nullable=True, unique=True)
     name: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    category: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("true")
+    )
     grants_all: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=text("false")
     )

@@ -1,5 +1,6 @@
 import re
 from dataclasses import dataclass
+from app.modules.iam.user_types import STARTER_ROLES  # noqa: F401
 
 CODE_PATTERN = re.compile(r"^[a-z][a-z_]*\.[a-z][a-z_]*\.[a-z][a-z_]*$")
 
@@ -34,14 +35,6 @@ STANDARD_ACTIONS = frozenset(
 )
 SPECIALISED_ACTIONS = frozenset({"initialize", "unlock", "assign_role"})
 
-STARTER_ROLES = {
-    "super_admin": ("Super Admin", "Full access to everything, including future modules."),
-    "registrar": ("Registrar", "Runs academic records and university-wide academic setup."),
-    "dean": ("Dean", "Approves academic decisions for a college or faculty."),
-    "cod": ("Chair of Department (COD)", "Manages and approves work within a department."),
-    "lecturer": ("Lecturer", "Teaching staff with mostly read access."),
-    "auditor": ("Auditor", "Read-only access for audit and review."),
-}
 
 
 @dataclass(frozen=True)

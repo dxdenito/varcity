@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -6,6 +7,14 @@ from pydantic import BaseModel, ConfigDict, Field
 class LoginRequest(BaseModel):
     email: str = Field(max_length=320)
     password: str = Field(max_length=1000)
+
+
+class ReauthRequest(BaseModel):
+    password: str = Field(max_length=1000)
+
+
+class ReauthResponse(BaseModel):
+    elevated_until: datetime
 
 
 class UserPublic(BaseModel):

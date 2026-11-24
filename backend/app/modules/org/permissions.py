@@ -16,7 +16,7 @@ declare(
     Permission(
         VIEW,
         "View the organization structure",
-        roles=("registrar", "dean", "cod", "lecturer", "auditor"),
+        roles=("registrar", "dean", "cod", "lecturer", "auditor", "staff_member"),
     ),
     Permission(
         EXPORT,
