@@ -24,6 +24,14 @@ os.environ["VARCITY_SECRET_KEY"] = "test-only-secret-key-not-for-real-use-012345
 os.environ["VARCITY_SESSION_IDLE_MINUTES"] = "30"
 os.environ["VARCITY_SESSION_ABSOLUTE_HOURS"] = "12"
 
+from pwdlib import PasswordHash  # noqa: E402
+from pwdlib.hashers.argon2 import Argon2Hasher  # noqa: E402
+
+from app.modules.iam import passwords  # noqa: E402
+
+passwords._hasher = PasswordHash(
+    (Argon2Hasher(time_cost=1, memory_cost=8, parallelism=1),)
+)
 
 @pytest.fixture(scope="session", autouse=True)
 def database():
