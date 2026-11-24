@@ -46,11 +46,13 @@ def sync_registry(db: Session) -> None:
                     code=declared.code,
                     module=declared.module,
                     description=declared.description,
+                    risk=declared.risk,
                 )
             )
             created.append(declared)
-        elif row.description != declared.description:
+        else:
             row.description = declared.description
+            row.risk = declared.risk
     db.flush()
     for declared in created:
         for key in declared.roles:

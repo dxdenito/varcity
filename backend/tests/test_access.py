@@ -15,7 +15,7 @@ from app.modules.iam.models import UserAccount
 from app.modules.org.models import Node, NodeType
 
 VIEW = "test.item.view"
-EDIT = "test.item.edit"
+EDIT = "test.item.update"
 
 
 @pytest.fixture(autouse=True)

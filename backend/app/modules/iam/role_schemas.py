@@ -9,6 +9,26 @@ class PermissionOut(BaseModel):
     code: str
     module: str
     description: str
+    risk: str
+
+
+class PermissionLeaf(BaseModel):
+    code: str
+    action: str
+    description: str
+    risk: str
+
+
+class ResourceNode(BaseModel):
+    resource: str
+    label: str
+    permissions: list[PermissionLeaf]
+
+
+class GroupNode(BaseModel):
+    module: str
+    label: str
+    resources: list[ResourceNode]
 
 
 class RoleOut(BaseModel):

@@ -1,4 +1,4 @@
-from app.modules.iam.registry import Permission, declare
+from app.modules.iam.registry import Permission, declare, declare_labels
 
 VIEW = "org.node.view"
 EXPORT = "org.node.export"
@@ -9,6 +9,8 @@ MOVE = "org.node.move"
 DELETE = "org.node.delete"
 IMPORT = "org.node.import"
 INITIALIZE = "org.node.initialize"
+
+declare_labels({"org": "Organization", "org.node": "Organization structure"})
 
 declare(
     Permission(
@@ -28,8 +30,22 @@ declare(
         UPDATE, "Rename entries and change their codes", roles=("registrar", "dean")
     ),
     Permission(ARCHIVE, "Archive and restore entries", roles=("registrar", "dean")),
-    Permission(MOVE, "Move entries to a different parent", roles=("registrar",)),
-    Permission(DELETE, "Delete unused entries", roles=("registrar",)),
-    Permission(IMPORT, "Bulk import entries from a file", roles=("registrar", "dean")),
-    Permission(INITIALIZE, "Set up the initial organization structure"),
+    Permission(
+        MOVE,
+        "Move entries to a different parent",
+        roles=("registrar",),
+        risk="sensitive",
+    ),
+    Permission(
+        DELETE, "Delete unused entries", roles=("registrar",), risk="sensitive"
+    ),
+    Permission(
+        IMPORT,
+        "Bulk import entries from a file",
+        roles=("registrar", "dean"),
+        risk="sensitive",
+    ),
+    Permission(
+        INITIALIZE, "Set up the initial organization structure", risk="sensitive"
+    ),
 )

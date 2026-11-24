@@ -8,9 +8,10 @@ from app.modules.iam import permissions as perm
 from app.modules.iam import role_service as service
 from app.modules.iam.access import Access
 from app.modules.iam.deps import get_access, require_permission
-from app.modules.iam.role_schemas import PermissionOut, RoleIn, RoleOut
+from app.modules.iam.role_schemas import GroupNode, PermissionOut, RoleIn, RoleOut
 from app.modules.iam.service import AuthContext
 from app.modules.iam.http import execute as _execute
+from app.modules.iam import catalogue
 
 router = APIRouter(prefix="/api/v1/admin", tags=["roles"])
 
@@ -29,6 +30,10 @@ def list_permissions(
 ):
     return service.list_permissions(db)
 
+
+@router.get("/permission-tree", response_model=list[GroupNode])
+def permission_tree(_: AuthContext = Depends(require_permission(perm.ROLE_VIEW))):
+    return catalogue.permission_tree()
 
 @router.get("/roles", response_model=list[RoleOut])
 def list_roles(

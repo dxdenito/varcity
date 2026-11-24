@@ -3,6 +3,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
@@ -22,11 +23,18 @@ class Permission(Base):
     """A permission declared in code and synced to the database at startup."""
 
     __tablename__ = "permission"
-    __table_args__ = {"schema": "iam"}
-
+    __table_args__ = (
+        CheckConstraint(
+            "risk IN ('normal', 'sensitive', 'critical')", name="risk_valid"
+        ),
+        {"schema": "iam"},
+    )
     code: Mapped[str] = mapped_column(Text, primary_key=True)
     module: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
+    risk: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default=text("'normal'")
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
