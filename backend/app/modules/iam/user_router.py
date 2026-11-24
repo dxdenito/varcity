@@ -4,13 +4,21 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
+from app.modules.iam import access_service
 from app.modules.iam import permissions as perm
 from app.modules.iam import user_service as service
 from app.modules.iam.access import Access
 from app.modules.iam.deps import get_access, require_permission
 from app.modules.iam.http import execute
 from app.modules.iam.service import AuthContext
-from app.modules.iam.user_schemas import AssignIn, UserOut, UserPage
+from app.modules.iam.user_schemas import (
+    AccessOut,
+    AssignIn,
+    ExplainOut,
+    GrantIn,
+    UserOut,
+    UserPage,
+)
 
 router = APIRouter(prefix="/api/v1/admin/users", tags=["users"])
 
@@ -39,6 +47,26 @@ def read_user(
     return execute(db, lambda: service.get_user(db, user_id))
 
 
+@router.get("/{user_id}/access", response_model=AccessOut)
+def read_access(
+    user_id: uuid.UUID,
+    _: AuthContext = Depends(require_permission(perm.USER_VIEW)),
+    db: Session = Depends(get_db),
+):
+    return execute(db, lambda: access_service.get_access_detail(db, user_id))
+
+
+@router.get("/{user_id}/explain", response_model=ExplainOut)
+def explain_access(
+    user_id: uuid.UUID,
+    permission: str = Query(min_length=1, max_length=100),
+    node_id: uuid.UUID | None = None,
+    _: AuthContext = Depends(require_permission(perm.USER_VIEW)),
+    db: Session = Depends(get_db),
+):
+    return execute(db, lambda: access_service.explain(db, user_id, permission, node_id))
+
+
 @router.post("/{user_id}/roles", status_code=201, response_model=UserOut)
 def assign_role(
     user_id: uuid.UUID,
@@ -57,6 +85,9 @@ def assign_role(
             user_id,
             role_id=payload.role_id,
             node_id=payload.node_id,
+            valid_from=payload.valid_from,
+            valid_until=payload.valid_until,
+            reason=payload.reason,
             ip_address=_ip(request),
         ),
     )
@@ -75,5 +106,48 @@ def unassign_role(
         db,
         lambda: service.unassign_role(
             db, ctx, access, user_id, assignment_id, _ip(request)
+        ),
+    )
+
+
+@router.post("/{user_id}/permissions", status_code=201, response_model=AccessOut)
+def grant_permission(
+    user_id: uuid.UUID,
+    payload: GrantIn,
+    request: Request,
+    ctx: AuthContext = Depends(require_permission(perm.ASSIGN_ROLE, anywhere=True)),
+    access: Access = Depends(get_access),
+    db: Session = Depends(get_db),
+):
+    return execute(
+        db,
+        lambda: access_service.grant_permission(
+            db,
+            ctx,
+            access,
+            user_id,
+            code=payload.permission,
+            node_id=payload.node_id,
+            valid_from=payload.valid_from,
+            valid_until=payload.valid_until,
+            reason=payload.reason,
+            ip_address=_ip(request),
+        ),
+    )
+
+
+@router.delete("/{user_id}/permissions/{grant_id}", response_model=AccessOut)
+def revoke_permission(
+    user_id: uuid.UUID,
+    grant_id: uuid.UUID,
+    request: Request,
+    ctx: AuthContext = Depends(require_permission(perm.ASSIGN_ROLE, anywhere=True)),
+    access: Access = Depends(get_access),
+    db: Session = Depends(get_db),
+):
+    return execute(
+        db,
+        lambda: access_service.revoke_permission(
+            db, ctx, access, user_id, grant_id, _ip(request)
         ),
     )
