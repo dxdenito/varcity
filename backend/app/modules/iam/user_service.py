@@ -280,3 +280,57 @@ def unassign_role(
         ip_address=clean_ip(ip_address),
     )
     return get_user(db, user_id)
+
+
+
+def update_assignment(
+    db: Session,
+    ctx: AuthContext,
+    access: Access,
+    user_id: uuid.UUID,
+    assignment_id: uuid.UUID,
+    *,
+    valid_from: datetime | None,
+    valid_until: datetime | None,
+    reason: str | None,
+    ip_address: str | None,
+) -> None:
+    row = db.get(RoleAssignment, assignment_id)
+    if row is None or row.user_id != user_id:
+        raise RoleNotFound("Assignment not found.")
+    node = db.get(Node, row.node_id) if row.node_id else None
+    if not may_assign_at(access, node):
+        raise RoleForbidden("You cannot change roles here.")
+    role = db.get(Role, row.role_id)
+    if role.grants_all and not access.holds_everything():
+        raise RoleForbidden("Only a super admin can change the Super Admin role.")
+    check_window(valid_from, valid_until, datetime.now(UTC))
+
+    old = {
+        "role": role.name,
+        "node": node.name if node else None,
+        "valid_from": row.valid_from.isoformat() if row.valid_from else None,
+        "valid_until": row.valid_until.isoformat() if row.valid_until else None,
+        "reason": row.reason,
+    }
+    row.valid_from = valid_from
+    row.valid_until = valid_until
+    row.reason = clean_reason(reason)
+    db.flush()
+    audit.record(
+        db,
+        action="iam.assignment.updated",
+        module="iam",
+        actor_id=ctx.user.id,
+        entity_type="user_account",
+        entity_id=str(user_id),
+        old_values=old,
+        new_values={
+            "role": role.name,
+            "node": node.name if node else None,
+            "valid_from": valid_from.isoformat() if valid_from else None,
+            "valid_until": valid_until.isoformat() if valid_until else None,
+            "reason": row.reason,
+        },
+        ip_address=clean_ip(ip_address),
+    )

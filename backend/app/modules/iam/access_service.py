@@ -20,14 +20,18 @@ from app.modules.iam.role_service import (
     RoleForbidden,
     RoleInvalid,
     RoleNotFound,
+    probing_fresh,
     require_fresh,
 )
 from app.modules.iam.service import AuthContext
 from app.modules.iam.user_service import (
+    assign_role,
     assignments_for,
     check_window,
     clean_reason,
     may_assign_at,
+    unassign_role,
+    update_assignment,
     window_state,
 )
 from app.modules.org.models import Node
@@ -313,3 +317,170 @@ def explain(
         result["held_elsewhere"] = [_source(g) for g in access.elsewhere(code, path)]
         result["inactive"] = _inactive_sources(db, user.id, code, now)
     return result
+
+
+
+
+def _risky_codes(db: Session, role_id: uuid.UUID) -> dict[str, str]:
+    rows = db.execute(
+        select(Permission.code, Permission.risk)
+        .join(RolePermission, RolePermission.permission_code == Permission.code)
+        .where(RolePermission.role_id == role_id, Permission.risk != "normal")
+    ).all()
+    return {code: risk for code, risk in rows}
+
+
+def _is_fresh(ctx: AuthContext) -> bool:
+    until = ctx.session.elevated_until
+    return until is not None and until > datetime.now(UTC)
+
+
+def _describe_assignment(db: Session, assignment_id: uuid.UUID, user_id: uuid.UUID):
+    return db.execute(
+        select(Role.name, Node.name.label("node_name"))
+        .select_from(RoleAssignment)
+        .join(Role, Role.id == RoleAssignment.role_id)
+        .outerjoin(Node, Node.id == RoleAssignment.node_id)
+        .where(RoleAssignment.id == assignment_id, RoleAssignment.user_id == user_id)
+    ).first()
+
+
+def _describe_grant(db: Session, grant_id: uuid.UUID, user_id: uuid.UUID):
+    return db.execute(
+        select(Permission.description, Node.name.label("node_name"))
+        .select_from(UserPermission)
+        .join(Permission, Permission.code == UserPermission.permission_code)
+        .outerjoin(Node, Node.id == UserPermission.node_id)
+        .where(UserPermission.id == grant_id, UserPermission.user_id == user_id)
+    ).first()
+
+
+def _run_changes(db, ctx, access, user_id, changes, ip_address):
+    _load_user(db, user_id)
+    items: list[dict] = []
+    sensitive: set[str] = set()
+    critical: set[str] = set()
+
+    for assignment_id in changes.remove_assignments:
+        row = _describe_assignment(db, assignment_id, user_id)
+        unassign_role(db, ctx, access, user_id, assignment_id, ip_address)
+        items.append(
+            {
+                "kind": "assignment",
+                "action": "remove",
+                "label": row.name,
+                "scope": row.node_name or "Whole university",
+            }
+        )
+
+    for grant_id in changes.remove_grants:
+        row = _describe_grant(db, grant_id, user_id)
+        revoke_permission(db, ctx, access, user_id, grant_id, ip_address)
+        items.append(
+            {
+                "kind": "grant",
+                "action": "remove",
+                "label": row.description,
+                "scope": row.node_name or "Whole university",
+            }
+        )
+
+    for change in changes.update_assignments:
+        row = _describe_assignment(db, change.id, user_id)
+        update_assignment(
+            db,
+            ctx,
+            access,
+            user_id,
+            change.id,
+            valid_from=change.valid_from,
+            valid_until=change.valid_until,
+            reason=change.reason,
+            ip_address=ip_address,
+        )
+        items.append(
+            {
+                "kind": "assignment",
+                "action": "update",
+                "label": row.name,
+                "scope": row.node_name or "Whole university",
+            }
+        )
+
+    for add in changes.add_assignments:
+        assign_role(
+            db,
+            ctx,
+            access,
+            user_id,
+            role_id=add.role_id,
+            node_id=add.node_id,
+            valid_from=add.valid_from,
+            valid_until=add.valid_until,
+            reason=add.reason,
+            ip_address=ip_address,
+        )
+        role = db.get(Role, add.role_id)
+        node = db.get(Node, add.node_id) if add.node_id else None
+        items.append(
+            {
+                "kind": "assignment",
+                "action": "add",
+                "label": role.name,
+                "scope": node.name if node else "Whole university",
+            }
+        )
+        if role.grants_all:
+            critical.add("All permissions (Super Admin)")
+        else:
+            for code, risk in _risky_codes(db, role.id).items():
+                (critical if risk == "critical" else sensitive).add(code)
+
+    for add in changes.add_grants:
+        grant_permission(
+            db,
+            ctx,
+            access,
+            user_id,
+            code=add.permission,
+            node_id=add.node_id,
+            valid_from=add.valid_from,
+            valid_until=add.valid_until,
+            reason=add.reason,
+            ip_address=ip_address,
+        )
+        permission = db.get(Permission, add.permission)
+        node = db.get(Node, add.node_id) if add.node_id else None
+        items.append(
+            {
+                "kind": "grant",
+                "action": "add",
+                "label": permission.description,
+                "scope": node.name if node else "Whole university",
+            }
+        )
+        if permission.risk == "critical":
+            critical.add(permission.code)
+        elif permission.risk == "sensitive":
+            sensitive.add(permission.code)
+
+    return items, sensitive, critical
+
+
+def apply_changes(db, ctx, access, user_id, changes, ip_address) -> dict:
+    _run_changes(db, ctx, access, user_id, changes, ip_address)
+    return get_access_detail(db, user_id)
+
+
+def review_changes(db, ctx, access, user_id, changes, ip_address) -> dict:
+    """Check the changes exactly as apply would, then roll everything back."""
+    with probing_fresh() as probe:
+        items, sensitive, critical = _run_changes(db, ctx, access, user_id, changes, ip_address)
+    needs_confirmation = bool(probe) and not _is_fresh(ctx)
+    db.rollback()
+    return {
+        "items": items,
+        "sensitive": sorted(sensitive),
+        "critical": sorted(critical),
+        "requires_confirmation": needs_confirmation,
+    }

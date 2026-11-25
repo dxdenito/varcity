@@ -10,6 +10,8 @@ from app.modules.audit import service as audit
 from app.modules.iam.access import Access
 from app.modules.iam.rbac_models import Permission, Role, RoleAssignment, RolePermission
 from app.modules.iam.service import AuthContext
+from contextlib import contextmanager
+from contextvars import ContextVar
 
 
 class RoleError(Exception):
@@ -38,8 +40,26 @@ class RoleReauth(RoleError):
     pass
 
 
+_probe: ContextVar[list | None] = ContextVar("fresh_probe", default=None)
+
+
+@contextmanager
+def probing_fresh():
+    """Record the password confirmation requirement instead of enforcing it (dry runs)."""
+    calls: list[bool] = []
+    token = _probe.set(calls)
+    try:
+        yield calls
+    finally:
+        _probe.reset(token)
+
+
 def require_fresh(ctx: AuthContext) -> None:
     """The session must have confirmed the user's password recently."""
+    probe = _probe.get()
+    if probe is not None:
+        probe.append(True)
+        return
     until = ctx.session.elevated_until
     if until is None or until <= datetime.now(UTC):
         raise RoleReauth("Please confirm your password to continue.")

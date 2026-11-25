@@ -87,3 +87,41 @@ class ExplainOut(BaseModel):
     granted_by: list[ExplainSource]
     held_elsewhere: list[ExplainSource]
     inactive: list[ExplainSource]
+
+
+
+class AssignmentAdd(BaseModel):
+    role_id: uuid.UUID
+    node_id: uuid.UUID | None = None
+    valid_from: AwareDatetime | None = None
+    valid_until: AwareDatetime | None = None
+    reason: str | None = Field(default=None, max_length=300)
+
+
+class AssignmentChange(BaseModel):
+    id: uuid.UUID
+    valid_from: AwareDatetime | None = None
+    valid_until: AwareDatetime | None = None
+    reason: str | None = Field(default=None, max_length=300)
+
+
+class AccessChanges(BaseModel):
+    add_assignments: list[AssignmentAdd] = Field(default_factory=list, max_length=100)
+    update_assignments: list[AssignmentChange] = Field(default_factory=list, max_length=100)
+    remove_assignments: list[uuid.UUID] = Field(default_factory=list, max_length=100)
+    add_grants: list[GrantIn] = Field(default_factory=list, max_length=200)
+    remove_grants: list[uuid.UUID] = Field(default_factory=list, max_length=200)
+
+
+class ReviewItem(BaseModel):
+    kind: str
+    action: str
+    label: str
+    scope: str
+
+
+class ReviewOut(BaseModel):
+    items: list[ReviewItem]
+    sensitive: list[str]
+    critical: list[str]
+    requires_confirmation: bool

@@ -12,10 +12,12 @@ from app.modules.iam.deps import get_access, require_permission
 from app.modules.iam.http import execute
 from app.modules.iam.service import AuthContext
 from app.modules.iam.user_schemas import (
+    AccessChanges,
     AccessOut,
     AssignIn,
     ExplainOut,
     GrantIn,
+    ReviewOut,
     UserOut,
     UserPage,
 )
@@ -65,6 +67,39 @@ def explain_access(
     db: Session = Depends(get_db),
 ):
     return execute(db, lambda: access_service.explain(db, user_id, permission, node_id))
+
+@router.post("/{user_id}/access/review", response_model=ReviewOut)
+def review_access(
+    user_id: uuid.UUID,
+    changes: AccessChanges,
+    request: Request,
+    ctx: AuthContext = Depends(require_permission(perm.ASSIGN_ROLE, anywhere=True)),
+    access: Access = Depends(get_access),
+    db: Session = Depends(get_db),
+):
+    return execute(
+        db,
+        lambda: access_service.review_changes(
+            db, ctx, access, user_id, changes, _ip(request)
+        ),
+    )
+
+
+@router.post("/{user_id}/access/apply", response_model=AccessOut)
+def apply_access(
+    user_id: uuid.UUID,
+    changes: AccessChanges,
+    request: Request,
+    ctx: AuthContext = Depends(require_permission(perm.ASSIGN_ROLE, anywhere=True)),
+    access: Access = Depends(get_access),
+    db: Session = Depends(get_db),
+):
+    return execute(
+        db,
+        lambda: access_service.apply_changes(
+            db, ctx, access, user_id, changes, _ip(request)
+        ),
+    )
 
 
 @router.post("/{user_id}/roles", status_code=201, response_model=UserOut)
