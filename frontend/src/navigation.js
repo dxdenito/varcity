@@ -6,7 +6,6 @@ import {
   Contact,
   FileCheck,
   GraduationCap,
-  Landmark,
   LayoutDashboard,
   Network,
   Settings,
@@ -20,17 +19,15 @@ import {
 } from 'lucide-react'
 
 const SETTINGS_ITEMS = [
-  { label: 'Organization', to: '/settings/organization', icon: Network,     perm: ['settings.university.view', 'settings.general.view'], },
+  { label: 'Organization', to: '/settings/organization', icon: Network, perm: 'org.node.view' },
   {
     label: 'General Settings',
     to: '/settings/general',
     icon: SlidersHorizontal,
-    perm: 'settings.university.view',
+    perm: ['settings.university.view', 'settings.general.view'],
   },
-]
-
-const ADMIN_ITEMS = [
-  { label: 'Users', to: '/admin/users', icon: UserCog, perm: 'iam.user.view' },
+  { label: 'Users', to: '/settings/users', icon: UserCog, perm: 'iam.user.view' },
+  { label: 'User Types', to: '/settings/user-types', icon: ShieldCheck, perm: 'iam.role.view' },
 ]
 
 // Entries without "to" are placeholders for modules that are not built yet.
@@ -49,7 +46,7 @@ export const NAV_ITEMS = [
   { label: 'Workflow', icon: Workflow },
   { label: 'Reports & Analytics', icon: TrendingUp },
   { label: 'Settings', icon: Settings, to: '/settings', children: SETTINGS_ITEMS },
-  { label: 'System Administration', icon: ShieldCheck, to: '/admin', children: ADMIN_ITEMS },
+  { label: 'System Administration', icon: ShieldCheck },
 ]
 
 export function visibleItems(items, canAnywhere) {

@@ -144,7 +144,7 @@ export default function UsersPage() {
                   >
                     <td className="py-2.5 pr-3">
                       <Link
-                        to={`/admin/users/${user.id}`}
+                        to={`/settings/users/${user.id}`}
                         className="font-medium text-brand-700 hover:underline"
                       >
                         {user.full_name || user.email}

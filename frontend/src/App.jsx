@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 
 import { useAuth } from './auth/auth-context'
 import AuthProvider from './auth/AuthProvider'
+import ReauthProvider from './auth/ReauthProvider'
 import AppShell from './components/layout/AppShell'
 import RequirePermission from './components/RequirePermission'
 import { api } from './lib/api'
@@ -11,15 +12,17 @@ import BrandingProvider from './theme/BrandingProvider'
 import { useBranding } from './theme/branding-context'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 
+import { ADMIN } from './features/admin/admin-permissions'
+import UserPage from './features/admin/UserPage'
+import UsersPage from './features/admin/UsersPage'
+import UserTypePage from './features/admin/UserTypePage'
+import UserTypesPage from './features/admin/UserTypesPage'
 import OrganizationPage from './features/org/OrganizationPage'
 import AppearanceTab from './features/settings/AppearanceTab'
 import UniversityTab from './features/settings/UniversityTab'
 import GeneralSettingsPage, { FirstTabRedirect } from './features/settings/GeneralSettingsPage'
 import RegionalTab from './features/settings/RegionalTab'
 import { SETTINGS } from './features/settings/settings-permissions'
-import { ADMIN } from './features/admin/admin-permissions'
-import UserPage from './features/admin/UserPage'
-import UsersPage from './features/admin/UsersPage'
 
 const SHADES = ['50', '100', '200', '300', '400', '500', '600', '700', '800', '900', '950']
 
@@ -56,6 +59,10 @@ function DashboardPlaceholder() {
   )
 }
 
+function guarded(perm, element) {
+  return <RequirePermission perm={perm}>{element}</RequirePermission>
+}
+
 // Signed in -> the application. Otherwise -> the login screen.
 function AuthenticatedApp() {
   const { status } = useAuth()
@@ -64,76 +71,55 @@ function AuthenticatedApp() {
   if (status === 'anonymous') return <LoginPage />
 
   return (
-    <AppShell>
-      <Routes>
-        <Route path="/" element={<DashboardPlaceholder />} />
-        <Route path="/settings" element={<Navigate to="/settings/general" replace />} />
-        <Route
-          path="/settings/university"
-          element={<Navigate to="/settings/general/university" replace />}
-        />
-        <Route
-          path="/settings/organization/:nodeId?"
-          element={
-            <RequirePermission perm="org.node.view">
-              <OrganizationPage />
-            </RequirePermission>
-          }
-        />
-        <Route
-          path="/settings/general"
-          element={
-            <RequirePermission perm={[SETTINGS.universityView, SETTINGS.generalView]}>
-              <GeneralSettingsPage />
-            </RequirePermission>
-          }
-        >
-          <Route index element={<FirstTabRedirect />} />
+    <ReauthProvider>
+      <AppShell>
+        <Routes>
+          <Route path="/" element={<DashboardPlaceholder />} />
+          <Route path="/settings" element={<Navigate to="/settings/general" replace />} />
           <Route
-            path="university"
-            element={
-              <RequirePermission perm={SETTINGS.universityView}>
-                <UniversityTab />
-              </RequirePermission>
-            }
+            path="/settings/university"
+            element={<Navigate to="/settings/general/university" replace />}
           />
           <Route
-            path="appearance"
-            element={
-              <RequirePermission perm={SETTINGS.universityView}>
-                <AppearanceTab />
-              </RequirePermission>
-            }
+            path="/settings/organization/:nodeId?"
+            element={guarded('org.node.view', <OrganizationPage />)}
           />
           <Route
-            path="regional"
-            element={
-              <RequirePermission perm={SETTINGS.generalView}>
-                <RegionalTab />
-              </RequirePermission>
-            }
+            path="/settings/general"
+            element={guarded(
+              [SETTINGS.universityView, SETTINGS.generalView],
+              <GeneralSettingsPage />,
+            )}
+          >
+            <Route index element={<FirstTabRedirect />} />
+            <Route
+              path="university"
+              element={guarded(SETTINGS.universityView, <UniversityTab />)}
+            />
+            <Route
+              path="appearance"
+              element={guarded(SETTINGS.universityView, <AppearanceTab />)}
+            />
+            <Route path="regional" element={guarded(SETTINGS.generalView, <RegionalTab />)} />
+          </Route>
+          <Route path="/settings/users" element={guarded(ADMIN.userView, <UsersPage />)} />
+          <Route
+            path="/settings/users/:userId"
+            element={guarded(ADMIN.userView, <UserPage />)}
           />
-        </Route>
-        <Route path="/admin" element={<Navigate to="/admin/users" replace />} />
-        <Route
-          path="/admin/users"
-          element={
-            <RequirePermission perm={ADMIN.userView}>
-              <UsersPage />
-            </RequirePermission>
-          }
-        />
-        <Route
-          path="/admin/users/:userId"
-          element={
-            <RequirePermission perm={ADMIN.userView}>
-              <UserPage />
-            </RequirePermission>
-          }
-        />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </AppShell>
+          <Route
+            path="/settings/user-types"
+            element={guarded(ADMIN.roleView, <UserTypesPage />)}
+          />
+          <Route
+            path="/settings/user-types/:roleId"
+            element={guarded(ADMIN.roleView, <UserTypePage />)}
+          />
+          <Route path="/admin/*" element={<Navigate to="/settings/users" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AppShell>
+    </ReauthProvider>
   )
 }
 

@@ -10,10 +10,12 @@ import { buttonDanger, buttonPrimary, buttonSecondary, inputClass } from '../../
 import { ancestorsOf, buildIndex, pathLabel } from '../org/tree'
 import { ADMIN } from './admin-permissions'
 import { assignRole, getUser, listNodes, listRoles, unassignRole, unlockUser } from './admin-api'
+import { useReauth } from '../../auth/reauth-context'
 
 export default function UserPage() {
   const { userId } = useParams()
   const { can, canAt, holdsAll } = usePermissions()
+    const { confirmed } = useReauth()
 
   const [user, setUser] = useState(null)
   const [loadError, setLoadError] = useState(null)
@@ -82,7 +84,7 @@ export default function UserPage() {
     setMessage(null)
     setBusy(true)
     try {
-      setUser(await action())
+      setUser(await confirmed(action))
       if (successText) setMessage({ type: 'success', text: successText })
     } catch (err) {
       setMessage({ type: 'error', text: err.message })
@@ -109,7 +111,7 @@ export default function UserPage() {
       <nav aria-label="Breadcrumb">
         <ol className="flex items-center gap-1 text-sm text-slate-500">
           <li>
-            <Link to="/admin/users" className="hover:text-brand-700 hover:underline">
+            <Link to="/settings/users" className="hover:text-brand-700 hover:underline">
               Users
             </Link>
           </li>
